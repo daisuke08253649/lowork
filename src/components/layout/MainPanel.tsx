@@ -5,5 +5,9 @@ type MainPanelProps = {
 };
 
 export function MainPanel({ children }: MainPanelProps) {
-  return <main className="min-w-0 flex-1 overflow-y-auto bg-background">{children}</main>;
+  return (
+    <main className="min-w-0 flex-1 overflow-y-auto bg-background">
+      {children}
+    </main>
+  );
 }
