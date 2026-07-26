@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+langchain
+langchain-community
+chromadb
+sqlalchemy
+aiosqlite
+httpx
+psutil
+beautifulsoup4

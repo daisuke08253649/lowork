@@ -1,0 +1,53 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Node / Vite (frontend)
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Tauri (src-tauri/.gitignore already covers /target and /gen/schemas locally; kept here too as a safety net)
+src-tauri/target
+src-tauri/gen/schemas
+
+# Python (backend)
+**/__pycache__/
+*.py[cod]
+*$py.class
+backend/.venv/
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environment variables / secrets
+.env
+.env.*
+
+# Local app data (SQLite / ChromaDB / RAG index) - must never be committed
+*.db
+*.sqlite
+*.sqlite3
+chroma_db/
+**/chroma_db/
+storage/
+data/

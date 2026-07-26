@@ -1,0 +1,21 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "opener:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "uvicorn",
+          "cmd": "/Users/daisuke/workspace/saino/development/lowork/backend/.venv/bin/uvicorn",
+          "args": ["backend.main:app", "--port", "8000"],
+          "sidecar": false
+        }
+      ]
+    }
+  ]
+}
