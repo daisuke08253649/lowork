@@ -164,6 +164,7 @@
   - `GET /chat/conversations/{id}/messages`: メッセージ一覧
   - `DELETE /chat/conversations/{id}`: 会話削除
 - `/normal-chat` 完了後にメッセージを SQLite へ保存するロジックを追加
+- 指定された会話の保存済みメッセージを時系列順に取得し、Ollamaへ渡す`messages`配列へ反映する
 - 会話タイトル自動生成: AI返答完了後に Ollama へ別リクエストを送りタイトルを生成
 
 **依存**: T0-3完了後

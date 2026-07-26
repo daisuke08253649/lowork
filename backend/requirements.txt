@@ -8,3 +8,5 @@ aiosqlite
 httpx
 psutil
 beautifulsoup4
+black
+ruff
