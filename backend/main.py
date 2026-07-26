@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.api.chat import router as chat_router
 from backend.api.ollama import router as ollama_router
 
 app = FastAPI()
@@ -13,6 +14,7 @@ app.add_middleware(
 )
 
 app.include_router(ollama_router)
+app.include_router(chat_router)
 
 
 @app.get("/")
