@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import { OllamaWarningBanner } from "@/components/common/OllamaWarningBanner";
+import { useChatStore } from "@/store/chatStore";
 
 const navigationItems = [
   { label: "新しいチャット", path: "/", icon: MessageSquarePlus },
@@ -13,6 +14,15 @@ const navigationItems = [
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
+  const clearMessages = useChatStore((state) => state.clearMessages);
+  const isStreaming = useChatStore((state) => state.isStreaming);
+
+  function handleNavigate(path: string): void {
+    if (path === "/") {
+      clearMessages();
+    }
+    navigate(path);
+  }
 
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
@@ -30,8 +40,9 @@ export function Sidebar() {
           <Button
             key={path}
             className="w-full justify-start"
+            disabled={path === "/" && isStreaming}
             variant={location.pathname === path ? "secondary" : "ghost"}
-            onClick={() => navigate(path)}
+            onClick={() => handleNavigate(path)}
           >
             <Icon aria-hidden="true" />
             {label}
