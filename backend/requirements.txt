@@ -5,6 +5,7 @@ langchain-community
 chromadb
 sqlalchemy
 aiosqlite
+greenlet
 httpx
 psutil
 beautifulsoup4
