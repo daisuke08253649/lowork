@@ -4,8 +4,9 @@ from pathlib import Path
 from sqlalchemy import event, inspect, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-DATABASE_PATH = Path(__file__).resolve().parent.parent / "data" / "chat.db"
-DATABASE_URL = f"sqlite+aiosqlite:///{DATABASE_PATH}"
+from backend.config import DATABASE_URL, SQLITE_URL_PREFIX
+
+DATABASE_PATH = Path(DATABASE_URL.removeprefix(SQLITE_URL_PREFIX))
 
 engine = create_async_engine(DATABASE_URL)
 async_session_factory = async_sessionmaker(engine, expire_on_commit=False)

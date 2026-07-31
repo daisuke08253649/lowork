@@ -6,6 +6,7 @@ chromadb
 sqlalchemy
 aiosqlite
 greenlet
+python-dotenv
 httpx
 psutil
 beautifulsoup4

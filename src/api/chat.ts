@@ -2,11 +2,28 @@ import axios from "axios";
 import { z } from "zod";
 
 import { apiClient } from "@/api/client";
+import type { ChatConversation, ChatMessage } from "@/types/chat";
 
 const normalChatEventSchema = z.object({
   content: z.string().optional(),
+  conversation_id: z.string().uuid().optional(),
   done: z.boolean(),
   error: z.string().optional(),
+});
+
+const chatConversationSchema = z.object({
+  id: z.string().uuid(),
+  project_id: z.string().uuid().nullable(),
+  title: z.string(),
+  created_at: z.string().datetime(),
+});
+
+const chatMessageSchema = z.object({
+  id: z.string().uuid(),
+  conversation_id: z.string().uuid(),
+  role: z.enum(["user", "assistant"]),
+  content: z.string(),
+  created_at: z.string().datetime(),
 });
 
 const apiErrorSchema = z.object({
@@ -28,6 +45,25 @@ type ExtractedEvents = {
   events: NormalChatEvent[];
   remainingBuffer: string;
 };
+
+function toChatConversation(
+  conversation: z.infer<typeof chatConversationSchema>,
+): ChatConversation {
+  return {
+    id: conversation.id,
+    projectId: conversation.project_id,
+    title: conversation.title,
+    createdAt: conversation.created_at,
+  };
+}
+
+function toChatMessage(message: z.infer<typeof chatMessageSchema>): ChatMessage {
+  return {
+    id: message.id,
+    role: message.role,
+    content: message.content,
+  };
+}
 
 function parseSseEvent(rawEvent: string): NormalChatEvent | null {
   const data = rawEvent
@@ -123,6 +159,26 @@ export function getChatErrorMessage(error: unknown): string {
   return error instanceof Error
     ? error.message
     : "メッセージの送信に失敗しました";
+}
+
+export async function getChatConversations(): Promise<ChatConversation[]> {
+  const response = await apiClient.get<unknown>("/chat/conversations");
+  return z.array(chatConversationSchema).parse(response.data).map(toChatConversation);
+}
+
+export async function getChatMessages(
+  conversationId: string,
+): Promise<ChatMessage[]> {
+  const response = await apiClient.get<unknown>(
+    `/chat/conversations/${conversationId}/messages`,
+  );
+  return z.array(chatMessageSchema).parse(response.data).map(toChatMessage);
+}
+
+export async function deleteChatConversation(
+  conversationId: string,
+): Promise<void> {
+  await apiClient.delete(`/chat/conversations/${conversationId}`);
 }
 
 export async function streamNormalChat(

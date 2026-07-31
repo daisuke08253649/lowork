@@ -1,8 +1,20 @@
-import { FolderKanban, MessageSquarePlus, Settings } from "lucide-react";
+import { useEffect } from "react";
+import {
+  FolderKanban,
+  MessageSquarePlus,
+  Settings,
+  Trash2,
+} from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import { OllamaWarningBanner } from "@/components/common/OllamaWarningBanner";
+import {
+  loadChatConversations,
+  loadChatConversation,
+  removeChatConversation,
+  startNewChat,
+} from "@/hooks/useChat";
 import { useChatStore } from "@/store/chatStore";
 
 const navigationItems = [
@@ -14,14 +26,31 @@ const navigationItems = [
 export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const clearMessages = useChatStore((state) => state.clearMessages);
+  const activeConversationId = useChatStore(
+    (state) => state.activeConversationId,
+  );
+  const conversations = useChatStore((state) => state.conversations);
+  const isHistoryLoading = useChatStore((state) => state.isHistoryLoading);
   const isStreaming = useChatStore((state) => state.isStreaming);
+
+  useEffect(() => {
+    void loadChatConversations();
+  }, []);
 
   function handleNavigate(path: string): void {
     if (path === "/") {
-      clearMessages();
+      startNewChat();
     }
     navigate(path);
+  }
+
+  async function handleConversationSelect(conversationId: string): Promise<void> {
+    await loadChatConversation(conversationId);
+    navigate("/");
+  }
+
+  async function handleConversationDelete(conversationId: string): Promise<void> {
+    await removeChatConversation(conversationId);
   }
 
   return (
@@ -53,7 +82,7 @@ export function Sidebar() {
       <div className="mx-3 border-t" />
 
       <section
-        className="min-h-0 flex-1 px-3 py-4"
+        className="flex min-h-0 flex-1 flex-col px-3 py-4"
         aria-labelledby="history-heading"
       >
         <h2
@@ -62,9 +91,43 @@ export function Sidebar() {
         >
           チャット履歴
         </h2>
-        <p className="px-2 pt-3 text-sm text-muted-foreground">
-          履歴はまだありません
-        </p>
+        <div className="mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto">
+          {isHistoryLoading && conversations.length === 0 && (
+            <p className="px-2 text-sm text-muted-foreground">読み込み中...</p>
+          )}
+          {!isHistoryLoading && conversations.length === 0 && (
+            <p className="px-2 text-sm text-muted-foreground">
+              履歴はまだありません
+            </p>
+          )}
+          {conversations.map((conversation) => (
+            <div
+              key={conversation.id}
+              className="group flex items-center gap-1 rounded-md pr-1 hover:bg-sidebar-accent"
+            >
+              <Button
+                className="min-w-0 flex-1 justify-start truncate"
+                disabled={isStreaming}
+                variant={
+                  activeConversationId === conversation.id ? "secondary" : "ghost"
+                }
+                onClick={() => void handleConversationSelect(conversation.id)}
+              >
+                <span className="truncate">{conversation.title}</span>
+              </Button>
+              <Button
+                aria-label={`${conversation.title}を削除`}
+                className="shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                disabled={isStreaming}
+                size="icon"
+                variant="ghost"
+                onClick={() => void handleConversationDelete(conversation.id)}
+              >
+                <Trash2 className="size-4" aria-hidden="true" />
+              </Button>
+            </div>
+          ))}
+        </div>
       </section>
     </aside>
   );
