@@ -42,6 +42,7 @@ backend/.venv/
 # Environment variables / secrets
 .env
 .env.*
+!.env.example
 
 # Local app data (SQLite / ChromaDB / RAG index) - must never be committed
 *.db

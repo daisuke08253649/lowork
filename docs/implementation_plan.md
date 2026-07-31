@@ -172,6 +172,11 @@
 
 ### T3-2: チャット履歴 UI ⏱1時間 🤖AI
 **作業内容**:
+- 設定値をプロジェクトルートの `.env` に集約する
+  - バックエンド: `OLLAMA_BASE_URL`、`OLLAMA_TIMEOUT_SECONDS`、`DATABASE_URL` を `.env` から読み込む
+  - フロントエンド: `VITE_API_BASE_URL` を `.env` から読み込む
+  - `.env.example` を追加し、開発に必要な変数名とローカル向けの既定値を共有する
+  - `.env` はGit管理せず、既存の`.gitignore`設定を維持する
 - `src/store/chatStore.ts`: 会話一覧・アクティブ会話の状態管理
 - `src/hooks/useChat.ts` にアプリ起動時の履歴取得ロジックを追加
 - サイドバーのチャット履歴一覧を実データで表示

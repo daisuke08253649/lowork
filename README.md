@@ -36,7 +36,15 @@ ollama pull nomic-embed-text
 npm install
 ```
 
-### 2. バックエンド（Python）のセットアップ
+### 2. 環境変数ファイルの作成
+
+```bash
+cp .env.example .env
+```
+
+通常はサンプルのローカル向け設定のままで動作します。`VITE_API_BASE_URL`、`OLLAMA_BASE_URL`、`OLLAMA_TIMEOUT_SECONDS`、`DATABASE_URL` は必要な場合のみ変更してください。
+
+### 3. バックエンド（Python）のセットアップ
 
 ```bash
 cd backend
@@ -46,7 +54,7 @@ pip install -r requirements.txt
 cd ..
 ```
 
-### 3. Tauriサイドカーの実行パス設定を確認
+### 4. Tauriサイドカーの実行パス設定を確認
 
 [src-tauri/capabilities/default.json](src-tauri/capabilities/default.json) の `shell:allow-execute` パーミッションで、`backend/.venv/bin/uvicorn` への**絶対パス**を許可しています。プロジェクトを別の場所に配置している場合は、この`cmd`の値をご自身の環境の絶対パスに合わせて修正してください。
 
