@@ -200,6 +200,8 @@
   - `GET /projects/{id}/index-status`: `{ status: "indexing"|"done"|"error", progress: 0-100 }`
 - SQLite の `projects` テーブルへの CRUD 処理
 - フォルダパスの重複チェック（`folder_path` に UNIQUE 制約）
+- T5-1で実インデクサーを実装するまで、`index-status` は `done`・100% を返す。実際のインデックス構築の開始・進捗更新はT5-1でこの状態管理へ接続する
+- ChromaDB collection はT5-1で初めて作成されるため、`DELETE /projects/{id}` の collection 削除もT5-1で接続する
 
 **依存**: T3-1完了後
 
@@ -234,6 +236,8 @@
   - バックグラウンド（`asyncio.create_task`）でインデックスを構築
   - 進捗（処理済みファイル数 / 全ファイル数）を in-memory dict で管理
   - 差分更新: `last_modified` を比較し、変更されたファイルのみ再インデックス
+  - プロジェクト作成時にバックグラウンドの初回インデックスを開始し、`index-status` の進捗を更新
+  - `DELETE /projects/{id}` から ChromaDB の `project_{project_id}` collection を削除する処理を接続
 
 **依存**: T4-1完了後
 

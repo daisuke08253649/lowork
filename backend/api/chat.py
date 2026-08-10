@@ -1,7 +1,7 @@
 import asyncio
 import json
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime
+from datetime import datetime
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, status
@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import SQLAlchemyError
 
+from backend.api.serialization import as_utc_datetime
 from backend.config import OLLAMA_BASE_URL, OLLAMA_TIMEOUT_SECONDS
 from backend.db.models import ChatConversation, ChatMessage
 from backend.services.chat_history import (
@@ -140,12 +141,6 @@ def message_to_response(message: ChatMessage) -> ChatMessageResponse:
         content=message.content,
         created_at=as_utc_datetime(message.created_at),
     )
-
-
-def as_utc_datetime(value: datetime) -> datetime:
-    if value.tzinfo is None:
-        return value.replace(tzinfo=UTC)
-    return value.astimezone(UTC)
 
 
 def schedule_title_generation(
