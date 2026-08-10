@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router";
 import { MainPanel } from "@/components/layout/MainPanel";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { NormalChat } from "@/pages/NormalChat";
+import { ProjectChat } from "@/pages/ProjectChat";
 import { ProjectList } from "@/pages/ProjectList";
 import { Settings } from "@/pages/Settings";
 import "@/store/themeStore";
@@ -16,6 +17,7 @@ function App() {
         <Routes>
           <Route path="/" element={<NormalChat />} />
           <Route path="/projects" element={<ProjectList />} />
+          <Route path="/projects/:projectId" element={<ProjectChat />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
