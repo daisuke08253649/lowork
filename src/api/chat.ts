@@ -57,7 +57,9 @@ function toChatConversation(
   };
 }
 
-function toChatMessage(message: z.infer<typeof chatMessageSchema>): ChatMessage {
+function toChatMessage(
+  message: z.infer<typeof chatMessageSchema>,
+): ChatMessage {
   return {
     id: message.id,
     role: message.role,
@@ -163,7 +165,10 @@ export function getChatErrorMessage(error: unknown): string {
 
 export async function getChatConversations(): Promise<ChatConversation[]> {
   const response = await apiClient.get<unknown>("/chat/conversations");
-  return z.array(chatConversationSchema).parse(response.data).map(toChatConversation);
+  return z
+    .array(chatConversationSchema)
+    .parse(response.data)
+    .map(toChatConversation);
 }
 
 export async function getChatMessages(

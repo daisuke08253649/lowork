@@ -33,6 +33,12 @@ export function Sidebar() {
   const isHistoryLoading = useChatStore((state) => state.isHistoryLoading);
   const isStreaming = useChatStore((state) => state.isStreaming);
 
+  function isNavigationItemActive(path: string): boolean {
+    return path === "/"
+      ? location.pathname === path
+      : location.pathname.startsWith(path);
+  }
+
   useEffect(() => {
     void loadChatConversations();
   }, []);
@@ -44,12 +50,16 @@ export function Sidebar() {
     navigate(path);
   }
 
-  async function handleConversationSelect(conversationId: string): Promise<void> {
+  async function handleConversationSelect(
+    conversationId: string,
+  ): Promise<void> {
     await loadChatConversation(conversationId);
     navigate("/");
   }
 
-  async function handleConversationDelete(conversationId: string): Promise<void> {
+  async function handleConversationDelete(
+    conversationId: string,
+  ): Promise<void> {
     await removeChatConversation(conversationId);
   }
 
@@ -70,7 +80,7 @@ export function Sidebar() {
             key={path}
             className="w-full justify-start"
             disabled={path === "/" && isStreaming}
-            variant={location.pathname === path ? "secondary" : "ghost"}
+            variant={isNavigationItemActive(path) ? "secondary" : "ghost"}
             onClick={() => handleNavigate(path)}
           >
             <Icon aria-hidden="true" />
@@ -109,7 +119,9 @@ export function Sidebar() {
                 className="min-w-0 flex-1 justify-start truncate"
                 disabled={isStreaming}
                 variant={
-                  activeConversationId === conversation.id ? "secondary" : "ghost"
+                  activeConversationId === conversation.id
+                    ? "secondary"
+                    : "ghost"
                 }
                 onClick={() => void handleConversationSelect(conversation.id)}
               >

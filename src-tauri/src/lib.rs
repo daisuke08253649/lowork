@@ -20,6 +20,7 @@ pub fn run() {
     let uvicorn_path = project_root.join("backend/.venv/bin/uvicorn");
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
         .manage(BackendProcess(Mutex::new(None)))
