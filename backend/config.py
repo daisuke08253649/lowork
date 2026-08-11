@@ -10,6 +10,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 OLLAMA_TIMEOUT_SECONDS = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "5"))
 SQLITE_URL_PREFIX = "sqlite+aiosqlite:///"
 LOCAL_OLLAMA_HOSTS = {"127.0.0.1", "::1", "localhost"}
+OLLAMA_EMBEDDING_MODEL = os.environ.get("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text")
 
 
 def get_ollama_base_url() -> str:
@@ -33,5 +34,13 @@ def get_database_url() -> str:
     return f"{SQLITE_URL_PREFIX}{database_path.resolve()}"
 
 
+def get_chroma_db_path() -> Path:
+    configured_path = Path(os.environ.get("CHROMA_DB_PATH", "backend/data/chroma_db"))
+    if not configured_path.is_absolute():
+        configured_path = PROJECT_ROOT / configured_path
+    return configured_path.resolve()
+
+
 DATABASE_URL = get_database_url()
 OLLAMA_BASE_URL = get_ollama_base_url()
+CHROMA_DB_PATH = get_chroma_db_path()

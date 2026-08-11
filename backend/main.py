@@ -8,11 +8,16 @@ from backend.api.chat import router as chat_router
 from backend.api.ollama import router as ollama_router
 from backend.api.projects import router as projects_router
 from backend.db.database import close_database, initialize_database
+from backend.services.indexer import start_project_indexing
+from backend.services.project import list_projects
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     await initialize_database()
+    projects = await list_projects()
+    for project in projects:
+        start_project_indexing(project.id, project.folder_path)
     yield
     await close_database()
 

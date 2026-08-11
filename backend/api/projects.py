@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 from typing import Literal
 
@@ -10,12 +11,14 @@ from backend.services.index_status import (
     get_index_status,
     remove_index_status,
 )
+from backend.services.indexer import cancel_project_indexing, start_project_indexing
 from backend.services.project import (
     create_project,
     delete_project,
     get_project,
     list_projects,
 )
+from backend.services.rag import delete_project_collection
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -61,11 +64,24 @@ async def post_project(request_data: CreateProjectRequest) -> ProjectResponse:
     except FileExistsError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
+    start_project_indexing(project.id, project.folder_path)
     return project_to_response(project)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project_by_id(project_id: str) -> None:
+    if await get_project(project_id) is None:
+        raise HTTPException(status_code=404, detail="プロジェクトが見つかりません")
+
+    cancel_project_indexing(project_id)
+    try:
+        await asyncio.to_thread(delete_project_collection, project_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="プロジェクトのインデックス削除に失敗しました",
+        ) from exc
+
     if not await delete_project(project_id):
         raise HTTPException(status_code=404, detail="プロジェクトが見つかりません")
     remove_index_status(project_id)
