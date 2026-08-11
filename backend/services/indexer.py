@@ -31,6 +31,13 @@ class ProjectFileScan:
     has_errors: bool
 
 
+def is_supported_project_file(file_path: Path) -> bool:
+    return (
+        file_path.suffix.lower() in SUPPORTED_FILE_SUFFIXES
+        and not file_path.is_symlink()
+    )
+
+
 def find_project_files(project_folder: Path) -> ProjectFileScan:
     if not project_folder.is_dir():
         raise FileNotFoundError(
@@ -53,7 +60,7 @@ def find_project_files(project_folder: Path) -> ProjectFileScan:
         ]
         for filename in file_names:
             file_path = Path(directory_path, filename)
-            if file_path.suffix.lower() not in SUPPORTED_FILE_SUFFIXES:
+            if not is_supported_project_file(file_path):
                 continue
             try:
                 if S_ISREG(file_path.stat().st_mode):
