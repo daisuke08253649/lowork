@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime
+from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, status
@@ -7,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from backend.api.serialization import as_utc_datetime
 from backend.db.models import Project
+from backend.services.file_tree import FileTreeNode, build_file_tree
 from backend.services.index_status import (
     get_index_status,
     remove_index_status,
@@ -38,6 +40,22 @@ class ProjectResponse(BaseModel):
 class IndexStatusResponse(BaseModel):
     status: Literal["indexing", "done", "error"]
     progress: int = Field(ge=0, le=100)
+
+
+class FileTreeNodeResponse(BaseModel):
+    name: str
+    path: str
+    type: Literal["directory", "file"]
+    children: list["FileTreeNodeResponse"] = Field(default_factory=list)
+
+
+def file_tree_node_to_response(node: FileTreeNode) -> FileTreeNodeResponse:
+    return FileTreeNodeResponse(
+        name=node.name,
+        path=node.path,
+        type=node.type,
+        children=[file_tree_node_to_response(child) for child in node.children],
+    )
 
 
 def project_to_response(project: Project) -> ProjectResponse:
@@ -93,3 +111,21 @@ async def get_project_index_status(project_id: str) -> IndexStatusResponse:
         raise HTTPException(status_code=404, detail="プロジェクトが見つかりません")
     status_value, progress = get_index_status(project_id)
     return IndexStatusResponse(status=status_value, progress=progress)
+
+
+@router.get("/{project_id}/files", response_model=FileTreeNodeResponse)
+async def get_project_files(project_id: str) -> FileTreeNodeResponse:
+    project = await get_project(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="プロジェクトが見つかりません")
+
+    try:
+        tree = await asyncio.to_thread(build_file_tree, Path(project.folder_path))
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="プロジェクトフォルダのファイル一覧を取得できません",
+        ) from exc
+    return file_tree_node_to_response(tree)
