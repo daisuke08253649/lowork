@@ -263,7 +263,7 @@
 **作業内容**:
 - `backend/services/file_ops.py`:
   - `create_file(project_folder, filename, content)`: ファイル新規作成（フォルダ直下に保存）
-  - `edit_file(project_folder, filename, content)`: ファイル編集（`filename` でフォルダ内を検索して特定）
+  - `edit_file(project_folder, filename, content)`: ファイル編集（`filename` はプロジェクトフォルダからの相対パスで指定）
   - ファイルが見つからない場合のエラーハンドリング
 - `backend/api/files.py`:
   - `POST /files/apply`: `{ project_id, action, filename, content }` → ファイルへの書き込みを実行
