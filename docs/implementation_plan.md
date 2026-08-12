@@ -279,7 +279,7 @@
   4. Ollama へリクエスト送信
   5. レスポンス JSON をパース（`{ message, file_op }` 形式）
   6. 自走モードの場合は即座にファイル書き込み
-  7. JSON 返却: `{ message, file_op, mode }`
+  7. JSON 返却: `{ message, file_op, file_op_error, mode, conversation_id }`
 - System Prompt テンプレートの実装（JSON形式での返答を指示）
 - JSON パース失敗時のフォールバック処理（`message` のみ表示）
 - SQLite へのメッセージ保存
