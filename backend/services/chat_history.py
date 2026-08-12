@@ -1,13 +1,16 @@
+import asyncio
 import logging
 
 import httpx
 from sqlalchemy import delete, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import OLLAMA_BASE_URL, OLLAMA_TIMEOUT_SECONDS
 from backend.db.database import async_session_factory
 from backend.db.models import ChatConversation, ChatMessage
 
 logger = logging.getLogger(__name__)
+conversation_locks: dict[str, asyncio.Lock] = {}
 
 
 async def get_normal_conversation(conversation_id: str) -> ChatConversation | None:
@@ -15,6 +18,18 @@ async def get_normal_conversation(conversation_id: str) -> ChatConversation | No
         statement = select(ChatConversation).where(
             ChatConversation.id == conversation_id,
             ChatConversation.project_id.is_(None),
+        )
+        return await session.scalar(statement)
+
+
+async def get_project_conversation(
+    conversation_id: str,
+    project_id: str,
+) -> ChatConversation | None:
+    async with async_session_factory() as session:
+        statement = select(ChatConversation).where(
+            ChatConversation.id == conversation_id,
+            ChatConversation.project_id == project_id,
         )
         return await session.scalar(statement)
 
@@ -57,31 +72,93 @@ async def save_normal_chat(
             if conversation is None:
                 raise ValueError("会話が見つかりません")
 
-        next_sequence = await session.scalar(
-            select(func.coalesce(func.max(ChatMessage.sequence), 0)).where(
-                ChatMessage.conversation_id == conversation.id
-            )
+        await save_messages_and_commit(
+            session,
+            conversation.id,
+            user_content,
+            assistant_content,
         )
-        first_sequence = int(next_sequence) + 1
+        return conversation.id, is_new_conversation
 
-        session.add_all(
-            [
-                ChatMessage(
-                    conversation_id=conversation.id,
-                    role="user",
-                    content=user_content,
-                    sequence=first_sequence,
-                ),
-                ChatMessage(
-                    conversation_id=conversation.id,
-                    role="assistant",
-                    content=assistant_content,
-                    sequence=first_sequence + 1,
-                ),
-            ]
+
+async def save_project_chat(
+    conversation_id: str | None,
+    project_id: str,
+    user_content: str,
+    assistant_content: str,
+) -> tuple[str, bool]:
+    is_new_conversation = conversation_id is None
+    async with async_session_factory() as session:
+        if conversation_id is None:
+            conversation = ChatConversation(project_id=project_id)
+            session.add(conversation)
+            await session.flush()
+        else:
+            statement = select(ChatConversation).where(
+                ChatConversation.id == conversation_id,
+                ChatConversation.project_id == project_id,
+            )
+            conversation = await session.scalar(statement)
+            if conversation is None:
+                raise ValueError("会話が見つかりません")
+
+        await save_messages_and_commit(
+            session,
+            conversation.id,
+            user_content,
+            assistant_content,
+        )
+        return conversation.id, is_new_conversation
+
+
+def get_conversation_lock(conversation_id: str) -> asyncio.Lock:
+    return conversation_locks.setdefault(conversation_id, asyncio.Lock())
+
+
+async def save_messages_and_commit(
+    session: AsyncSession,
+    conversation_id: str,
+    user_content: str,
+    assistant_content: str,
+) -> None:
+    async with get_conversation_lock(conversation_id):
+        await save_chat_messages(
+            session,
+            conversation_id,
+            user_content,
+            assistant_content,
         )
         await session.commit()
-        return conversation.id, is_new_conversation
+
+
+async def save_chat_messages(
+    session: AsyncSession,
+    conversation_id: str,
+    user_content: str,
+    assistant_content: str,
+) -> None:
+    next_sequence = await session.scalar(
+        select(func.coalesce(func.max(ChatMessage.sequence), 0)).where(
+            ChatMessage.conversation_id == conversation_id
+        )
+    )
+    first_sequence = int(next_sequence) + 1
+    session.add_all(
+        [
+            ChatMessage(
+                conversation_id=conversation_id,
+                role="user",
+                content=user_content,
+                sequence=first_sequence,
+            ),
+            ChatMessage(
+                conversation_id=conversation_id,
+                role="assistant",
+                content=assistant_content,
+                sequence=first_sequence + 1,
+            ),
+        ]
+    )
 
 
 async def list_conversations(project_id: str | None) -> list[ChatConversation]:

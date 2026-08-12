@@ -204,7 +204,9 @@ rag-chatbot/
 
 - `action`: `"create"` | `"edit"`
 - `file_op` が不要な場合は `null`
-- `edit` の場合、`filename` でプロジェクトフォルダ内を検索して対象ファイルを特定
+- `edit` の場合、`filename` はプロジェクトフォルダからの相対パスで指定する
+
+`POST /project-chat` は `{ message, file_op, file_op_error, mode, conversation_id }` を返す。`file_op_error` は自走モードでファイル操作が失敗した場合のエラーメッセージであり、会話メッセージは保存・返却される。
 
 ### 普通のチャット処理フロー
 
