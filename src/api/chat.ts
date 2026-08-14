@@ -11,6 +11,20 @@ const normalChatEventSchema = z.object({
   error: z.string().optional(),
 });
 
+const projectFileOperationSchema = z.object({
+  action: z.enum(["create", "edit"]),
+  filename: z.string(),
+  content: z.string(),
+});
+
+const projectChatResponseSchema = z.object({
+  message: z.string(),
+  file_op: projectFileOperationSchema.nullable(),
+  file_op_error: z.string().nullable(),
+  mode: z.enum(["confirm", "auto"]),
+  conversation_id: z.string().uuid(),
+});
+
 const chatConversationSchema = z.object({
   id: z.string().uuid(),
   project_id: z.string().uuid().nullable(),
@@ -37,6 +51,28 @@ export type NormalChatRequest = {
   conversationId: string | null;
   message: string;
   model: string;
+};
+
+export type ProjectChatRequest = {
+  conversationId: string | null;
+  message: string;
+  mode: "confirm" | "auto";
+  model: string;
+  projectId: string;
+};
+
+export type ProjectFileOperation = {
+  action: "create" | "edit";
+  content: string;
+  filename: string;
+};
+
+export type ProjectChatResponse = {
+  conversationId: string;
+  fileOp: ProjectFileOperation | null;
+  fileOpError: string | null;
+  message: string;
+  mode: "confirm" | "auto";
 };
 
 type NormalChatEvent = z.infer<typeof normalChatEventSchema>;
@@ -161,6 +197,34 @@ export function getChatErrorMessage(error: unknown): string {
   return error instanceof Error
     ? error.message
     : "メッセージの送信に失敗しました";
+}
+
+export async function sendProjectChat(
+  request: ProjectChatRequest,
+): Promise<ProjectChatResponse> {
+  try {
+    const response = await apiClient.post<unknown>(
+      "/project-chat",
+      {
+        project_id: request.projectId,
+        conversation_id: request.conversationId,
+        message: request.message,
+        model: request.model,
+        mode: request.mode,
+      },
+      { timeout: 0 },
+    );
+    const result = projectChatResponseSchema.parse(response.data);
+    return {
+      conversationId: result.conversation_id,
+      fileOp: result.file_op,
+      fileOpError: result.file_op_error,
+      message: result.message,
+      mode: result.mode,
+    };
+  } catch (error) {
+    throw await toChatError(error);
+  }
 }
 
 export async function getChatConversations(): Promise<ChatConversation[]> {

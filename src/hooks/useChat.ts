@@ -1,9 +1,13 @@
+import { useEffect, useRef, useState } from "react";
+
 import {
   deleteChatConversation,
   getChatConversations,
   getChatErrorMessage,
   getChatMessages,
+  sendProjectChat,
   streamNormalChat,
+  type ProjectFileOperation,
 } from "@/api/chat";
 import { useChatStore } from "@/store/chatStore";
 import type { ChatMessage } from "@/types/chat";
@@ -22,6 +26,29 @@ type UseChatResult = {
   isStreaming: boolean;
   messages: ChatMessage[];
   sendMessage: (params: SendMessageParams) => Promise<SendMessageResult>;
+};
+
+type SendProjectMessageParams = {
+  message: string;
+  mode: "confirm" | "auto";
+  model: string;
+  projectId: string;
+};
+
+type ProjectChatNotice = {
+  fileOp: ProjectFileOperation | null;
+  fileOpError: string | null;
+  mode: "confirm" | "auto";
+};
+
+type UseProjectChatResult = {
+  error: string | null;
+  isSending: boolean;
+  messages: ChatMessage[];
+  notice: ProjectChatNotice | null;
+  sendProjectMessage: (
+    params: SendProjectMessageParams,
+  ) => Promise<SendMessageResult>;
 };
 
 const GENERATED_TITLE_POLL_INTERVAL_MS = 5_000;
@@ -206,4 +233,99 @@ export function useChat(): UseChatResult {
     messages,
     sendMessage,
   };
+}
+
+export function useProjectChat(
+  projectId: string | undefined,
+): UseProjectChatResult {
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [notice, setNotice] = useState<ProjectChatNotice | null>(null);
+  const requestIdRef = useRef(0);
+  const isSendingRef = useRef(false);
+
+  useEffect(() => {
+    requestIdRef.current += 1;
+    isSendingRef.current = false;
+    setConversationId(null);
+    setError(null);
+    setMessages([]);
+    setNotice(null);
+    setIsSending(false);
+  }, [projectId]);
+
+  async function sendProjectMessage({
+    message,
+    mode,
+    model,
+    projectId,
+  }: SendProjectMessageParams): Promise<SendMessageResult> {
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage || isSendingRef.current) {
+      return { shouldRestoreInput: true };
+    }
+
+    const userMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: trimmedMessage,
+    };
+    setError(null);
+    setNotice(null);
+    setMessages((currentMessages) => [...currentMessages, userMessage]);
+    isSendingRef.current = true;
+    setIsSending(true);
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
+    try {
+      const response = await sendProjectChat({
+        conversationId,
+        message: trimmedMessage,
+        mode,
+        model,
+        projectId,
+      });
+      if (requestId !== requestIdRef.current) {
+        return { shouldRestoreInput: false };
+      }
+      const assistantContent =
+        response.message.trim() || "応答を受け取りました。";
+      setConversationId(response.conversationId);
+      setMessages((currentMessages) => [
+        ...currentMessages,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: assistantContent,
+        },
+      ]);
+      setNotice({
+        fileOp: response.fileOp,
+        fileOpError: response.fileOpError,
+        mode: response.mode,
+      });
+      return { shouldRestoreInput: false };
+    } catch (requestError) {
+      if (requestId !== requestIdRef.current) {
+        return { shouldRestoreInput: false };
+      }
+      setMessages((currentMessages) =>
+        currentMessages.filter(
+          (currentMessage) => currentMessage.id !== userMessage.id,
+        ),
+      );
+      setError(getChatErrorMessage(requestError));
+      return { shouldRestoreInput: true };
+    } finally {
+      if (requestId === requestIdRef.current) {
+        isSendingRef.current = false;
+        setIsSending(false);
+      }
+    }
+  }
+
+  return { error, isSending, messages, notice, sendProjectMessage };
 }
