@@ -18,7 +18,9 @@ import { cn } from "@/lib/utils";
 const INDEX_STATUS_POLL_INTERVAL_MS = 2_000;
 
 type FileTreeProps = {
+  isChatPending?: boolean;
   projectId: string;
+  refreshToken?: number;
 };
 
 type TreeNodeProps = {
@@ -103,7 +105,11 @@ function IndexProgress({ indexStatus }: { indexStatus: IndexStatus }) {
   );
 }
 
-export function FileTree({ projectId }: FileTreeProps) {
+export function FileTree({
+  isChatPending = false,
+  projectId,
+  refreshToken = 0,
+}: FileTreeProps) {
   const [tree, setTree] = useState<FileTreeNode | null>(null);
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
   const [treeError, setTreeError] = useState<string | null>(null);
@@ -138,7 +144,11 @@ export function FileTree({ projectId }: FileTreeProps) {
         if (isActive) {
           setIndexStatus(result);
           setStatusError(null);
-          if (result.status !== "indexing" && intervalId !== undefined) {
+          if (
+            !isChatPending &&
+            result.status !== "indexing" &&
+            intervalId !== undefined
+          ) {
             window.clearInterval(intervalId);
           }
         }
@@ -166,7 +176,7 @@ export function FileTree({ projectId }: FileTreeProps) {
         window.clearInterval(intervalId);
       }
     };
-  }, [projectId]);
+  }, [isChatPending, projectId, refreshToken]);
 
   const error = treeError ?? statusError;
 

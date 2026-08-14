@@ -1,4 +1,5 @@
 # 実装計画書 - lowork
+
 > 作成: 2026-06-28 / MVP完成条件: 開発環境（`npm run tauri dev`）での動作確認
 
 ---
@@ -18,17 +19,17 @@
 
 ## フェーズ概要
 
-| フェーズ | 内容 | 設計書優先度 |
-|---------|------|------------|
-| Phase 0 | 環境構築・プロジェクトスキャフォールド | - |
-| Phase 1 | Tauri + FastAPI 基盤 | 優先度1 |
-| Phase 2 | 普通のチャット（Ollama + SSE） | 優先度2 |
-| Phase 3 | チャット履歴 | 優先度6 |
-| Phase 4 | プロジェクト管理 | 優先度3 |
-| Phase 5 | RAGインデックス + ファイルツリー | 優先度3 |
-| Phase 6 | プロジェクトチャット（RAG + ファイル操作） | 優先度4 |
-| Phase 7 | 確認モード / 自走モード | 優先度5 |
-| Phase 8 | 設定画面（モデルDL・互換性判定） | 優先度7 |
+| フェーズ | 内容                                       | 設計書優先度 |
+| -------- | ------------------------------------------ | ------------ |
+| Phase 0  | 環境構築・プロジェクトスキャフォールド     | -            |
+| Phase 1  | Tauri + FastAPI 基盤                       | 優先度1      |
+| Phase 2  | 普通のチャット（Ollama + SSE）             | 優先度2      |
+| Phase 3  | チャット履歴                               | 優先度6      |
+| Phase 4  | プロジェクト管理                           | 優先度3      |
+| Phase 5  | RAGインデックス + ファイルツリー           | 優先度3      |
+| Phase 6  | プロジェクトチャット（RAG + ファイル操作） | 優先度4      |
+| Phase 7  | 確認モード / 自走モード                    | 優先度5      |
+| Phase 8  | 設定画面（モデルDL・互換性判定）           | 優先度7      |
 
 ---
 
@@ -37,7 +38,9 @@
 > 全作業の土台。ここが完了して初めてコードを書き始められる。
 
 ### T0-1: 開発環境の確認・インストール ⏱30分 👤人間
+
 **作業内容**:
+
 - Rust (`rustup`) がインストールされていることを確認
 - Node.js (v20+) がインストールされていることを確認
 - Python 3.11+ がインストールされていることを確認
@@ -46,7 +49,9 @@
 - Tauri CLI のインストール: `cargo install tauri-cli`
 
 ### T0-2: Tauri + React プロジェクト初期化 ⏱1時間 👤人間
+
 **作業内容**:
+
 - `npm create tauri-app@latest lowork -- --template react-ts` で生成
 - shadcn/ui の初期セットアップ（`npx shadcn@latest init`）
 - Tailwind CSS 設定確認
@@ -57,7 +62,9 @@
 **依存**: T0-1完了後
 
 ### T0-3: Python バックエンド初期化 ⏱1時間 👤人間
+
 **作業内容**:
+
 - Tauri プロジェクトのルート（`lowork/`）直下に `backend/` ディレクトリを作成し、その中に `venv` を作成（`python -m venv .venv`）
 - `requirements.txt` の作成と依存ライブラリのインストール:
   - `fastapi`, `uvicorn`, `langchain`, `langchain-community`, `chromadb`
@@ -69,7 +76,9 @@
 **依存**: T0-1完了後
 
 ### T0-4: Tauri サイドカー設定 ⏱1時間 👤人間
+
 **作業内容**:
+
 - `tauri.conf.json` に Python サイドカーの起動設定を追加
 - `src-tauri/src/main.rs` でサイドカー（`uvicorn backend.main:app`）をアプリ起動時に開始・終了時に停止する処理を実装
 - `npm run tauri dev` で FastAPI が自動起動することを確認
@@ -83,7 +92,9 @@
 > UI の骨格と Ollama 疎通確認。ここで基本アーキテクチャが動くことを保証する。
 
 ### T1-0: 環境構築の完了確認 ⏱30分 🤖AI
+
 **作業内容**:
+
 - ディレクトリ構成・`package.json`・`requirements.txt` を確認し、設計書の構成と一致しているかチェック
 - `npm run tauri dev` が起動するか確認
 - `uvicorn backend.main:app` が起動するか確認（`GET /` でヘルスチェックが返るか）
@@ -93,7 +104,9 @@
 **依存**: T0-4完了後
 
 ### T1-1: 共通レイアウト（左サイドバー）の実装 ⏱2時間 🤖AI
+
 **作業内容**:
+
 - `src/components/layout/Sidebar.tsx`: 「新しいチャット」「プロジェクト」「設定」ボタン + チャット履歴エリア
 - `src/components/layout/MainPanel.tsx`: コンテンツ領域のラッパー
 - `src/pages/NormalChat.tsx`: 空のチャット画面（プレースホルダー）
@@ -105,7 +118,9 @@
 **依存**: T0-2完了後
 
 ### T1-2: Ollama 接続確認 API + UI ⏱1時間 🤖AI
+
 **作業内容**:
+
 - `backend/api/ollama.py`: `GET /ollama/status`（Ollama が起動中か確認）、`GET /ollama/models`（インストール済みモデル一覧）を実装
 - `src/api/ollama.ts`: axios クライアント関数
 - Ollama が未起動の場合、サイドバー上部に警告バナーを表示するコンポーネントを実装
@@ -120,7 +135,9 @@
 > プロダクトのコア体験。ここが動けばユーザーが最も基本的な価値を感じられる。
 
 ### T2-1: 普通のチャット API（SSE ストリーミング）⏱2時間 🤖AI
+
 **作業内容**:
+
 - `backend/api/chat.py`: `POST /normal-chat` を実装
   - リクエスト: `{ conversation_id, message, model }`
   - Ollama API（`http://localhost:11434/api/chat`）へリクエストを中継
@@ -130,7 +147,9 @@
 **依存**: T0-3完了後
 
 ### T2-2: チャット UI コンポーネントの実装 ⏱2時間 🤖AI
+
 **作業内容**:
+
 - `src/components/chat/ChatBubble.tsx`: ユーザー・AI メッセージのバブル（Markdownレンダリングは `react-markdown` で対応）
 - `src/components/chat/MessageList.tsx`: メッセージ一覧（自動スクロール）
 - `src/components/chat/MessageInput.tsx`: 入力欄 + 送信ボタン（Enterキーで送信、Shift+Enterで改行）
@@ -139,7 +158,9 @@
 **依存**: T1-1完了後
 
 ### T2-3: 普通のチャット画面の統合 ⏱1時間 🤖AI
+
 **作業内容**:
+
 - `src/pages/NormalChat.tsx` を完成させる（T2-1の API + T2-2のコンポーネントを統合）
 - `src/hooks/useChat.ts`: SSE 受信ロジック、メッセージ状態管理を実装
   - SSE受信はエンドポイント単位でタイムアウトを無効化し、共有APIクライアントの通常リクエスト用タイムアウト（5秒）でストリーミングが切断されないようにする
@@ -157,7 +178,9 @@
 > アプリを閉じても会話が残る。UX上の重要な完成度指標。
 
 ### T3-1: SQLite データベース + チャット履歴 API ⏱2時間 🤖AI
+
 **作業内容**:
+
 - `backend/db/database.py`: SQLAlchemy (async) の接続設定、DB初期化
 - `backend/db/models.py`: `projects`, `chat_conversations`, `chat_messages` テーブルの定義（設計書「3-1. SQLite テーブル定義」に準拠）
 - `backend/api/chat.py` に追加:
@@ -171,7 +194,9 @@
 **依存**: T0-3完了後
 
 ### T3-2: チャット履歴 UI ⏱1時間 🤖AI
+
 **作業内容**:
+
 - 設定値をプロジェクトルートの `.env` に集約する
   - バックエンド: `OLLAMA_BASE_URL`、`OLLAMA_TIMEOUT_SECONDS`、`DATABASE_URL` を `.env` から読み込む
   - フロントエンド: `VITE_API_BASE_URL` を `.env` から読み込む
@@ -192,7 +217,9 @@
 > RAG の前提となるプロジェクト（フォルダ）管理機能。
 
 ### T4-1: プロジェクト管理 API ⏱1.5時間 🤖AI
+
 **作業内容**:
+
 - `backend/api/projects.py`:
   - `GET /projects`: 一覧取得
   - `POST /projects`: 新規作成（`{ name, folder_path }`）→ インデックス構築をバックグラウンドで開始
@@ -206,7 +233,9 @@
 **依存**: T3-1完了後
 
 ### T4-2: プロジェクト一覧画面 + フォルダ選択 ⏱2時間 🤖AI + 🤝協働
+
 **作業内容**:
+
 - `src/pages/ProjectList.tsx` を完成させる
   - プロジェクトカードの一覧表示
   - 「+ 新規」ボタン → Tauri の `open()` ダイアログでフォルダを選択
@@ -225,7 +254,9 @@
 > ChromaDB へのインデックス構築。プロジェクトチャットの前提。
 
 ### T5-1: ChromaDB インデックス構築サービス ⏱2.5時間 🤖AI
+
 **作業内容**:
+
 - `backend/services/rag.py`:
   - ChromaDB クライアントの初期化（`collection名: project_{project_id}`）
   - Ollama Embedding（`nomic-embed-text`）を LangChain 経由で呼び出す関数
@@ -242,7 +273,9 @@
 **依存**: T4-1完了後
 
 ### T5-2: ファイルツリー API + UI ⏱1.5時間 🤖AI
+
 **作業内容**:
+
 - `backend/api/projects.py` に追加: `GET /projects/{id}/files`（ファイルツリーをネストした JSON で返却）
 - `src/components/project/FileTree.tsx`:
   - フォルダ・ファイルを再帰的にツリー表示
@@ -260,7 +293,9 @@
 > プロダクトのコア価値。RAG検索からファイル操作まで一気通貫で動く。
 
 ### T6-1: ファイル操作サービス ⏱1.5時間 🤖AI
+
 **作業内容**:
+
 - `backend/services/file_ops.py`:
   - `create_file(project_folder, filename, content)`: ファイル新規作成（フォルダ直下に保存）
   - `edit_file(project_folder, filename, content)`: ファイル編集（`filename` はプロジェクトフォルダからの相対パスで指定）
@@ -271,7 +306,9 @@
 **依存**: T5-1完了後
 
 ### T6-2: プロジェクトチャット API ⏱2.5時間 🤖AI
+
 **作業内容**:
+
 - `backend/api/chat.py` に追加: `POST /project-chat`
   1. 送信直前に差分インデックス更新（更新完了を待ってから次へ）
   2. ChromaDB で RAG 検索（top_k=5）
@@ -287,7 +324,9 @@
 **依存**: T6-1, T5-1完了後
 
 ### T6-3: プロジェクトチャット画面の実装 ⏱2時間 🤖AI + 🤝協働
+
 **作業内容**:
+
 - `src/pages/ProjectChat.tsx` を完成させる
 - `src/hooks/useChat.ts` にプロジェクトチャット用のロジックを追加
 - AI 返答後にファイルツリーを自動更新（`GET /projects/{id}/files` を再取得）
@@ -296,6 +335,10 @@
 
 **依存**: T6-2, T5-2完了後
 
+**継続対応**:
+
+- プロジェクト会話の一覧表示・復元・削除は、通常チャットの履歴と混在させず、プロジェクトチャット画面で扱う追加タスクとして計画する。現行MVPのT6-3では、画面を開いている間の会話継続のみを扱う。
+
 ---
 
 ## Phase 7: 確認モード / 自走モード
@@ -303,7 +346,9 @@
 > ファイル書き込み前のプレビュー機能。安全性と UX のバランス。
 
 ### T7-1: ファイルプレビューモーダル ⏱1.5時間 🤖AI
+
 **作業内容**:
+
 - `src/components/project/DiffPreview.tsx`:
   - モーダル形式で表示（設計書「6. 確認モード：ファイルプレビュー」のデザインに準拠）
   - ファイル名・アクション（作成 / 編集）を表示
@@ -316,7 +361,9 @@
 **依存**: T6-3完了後
 
 ### T7-2: モード状態管理の仕上げ ⏱30分 🤖AI
+
 **作業内容**:
+
 - `src/store/projectStore.ts` に実行モード（`confirm` | `auto`）を追加
 - モードを localStorage に保存（アプリ再起動後も維持）
 - プロジェクトチャット画面のトグルボタンと状態を連動
@@ -330,7 +377,9 @@
 > 補助機能。新規ユーザーがモデルをダウンロードするための画面。
 
 ### T8-1: PCスペック取得 + モデル一覧スクレイピング API ⏱2時間 🤖AI
+
 **作業内容**:
+
 - `backend/api/ollama.py` に追加:
   - `GET /system/specs`: `psutil` で搭載 RAM を取得して返却
   - `GET /ollama/available-models`: `ollama.com/library` をスクレイピングしてモデル一覧を取得
@@ -343,7 +392,9 @@
 **依存**: T0-3完了後（他フェーズと並行可）
 
 ### T8-2: 設定画面の実装 ⏱2時間 🤖AI + 🤝協働
+
 **作業内容**:
+
 - `src/pages/Settings.tsx` を完成させる
   - テーマ切り替えトグル（ライト / ダーク）→ Tailwind dark mode と連動
   - モデル一覧テーブル: 名前・サイズ・互換性バッジ・ダウンロードボタン
@@ -358,7 +409,9 @@
 ## 最終確認
 
 ### T9-1: 統合動作確認 ⏱1〜2時間 🤝協働
+
 **確認項目**:
+
 - [ ] 普通のチャット: メッセージ送信 → ストリーミング返答 → 履歴に保存
 - [ ] チャット履歴: アプリ再起動後に会話が復元される
 - [ ] プロジェクト作成: フォルダ選択 → インデックス構築 → ファイルツリー表示
@@ -380,7 +433,7 @@ T0-1 → T0-2 → T1-1 → T2-2 → T2-3
          T0-3 → T2-1 ───┘
            ↓
          T0-4
-           
+
 T0-3 → T3-1 → T3-2 (T1-1完了後)
 T3-1 → T4-1 → T4-2 (T1-1完了後)
 T4-1 → T5-1 → T5-2 (T4-2完了後)
@@ -394,18 +447,18 @@ T0-3 → T8-1 → T8-2 (T1-1完了後)  ← 他と並行可
 
 ## 工数見積もり（参考）
 
-| フェーズ | 見積もり工数 |
-|---------|------------|
-| Phase 0: 環境構築 | 3.5時間 |
-| Phase 1: 基盤 | 3時間 |
-| Phase 2: 普通のチャット | 5時間 |
-| Phase 3: チャット履歴 | 3時間 |
-| Phase 4: プロジェクト管理 | 3.5時間 |
-| Phase 5: RAGインデックス | 4時間 |
-| Phase 6: プロジェクトチャット | 6時間 |
-| Phase 7: 確認/自走モード | 2時間 |
-| Phase 8: 設定画面 | 4時間 |
-| 統合確認 | 2時間 |
-| **合計** | **約36時間** |
+| フェーズ                      | 見積もり工数 |
+| ----------------------------- | ------------ |
+| Phase 0: 環境構築             | 3.5時間      |
+| Phase 1: 基盤                 | 3時間        |
+| Phase 2: 普通のチャット       | 5時間        |
+| Phase 3: チャット履歴         | 3時間        |
+| Phase 4: プロジェクト管理     | 3.5時間      |
+| Phase 5: RAGインデックス      | 4時間        |
+| Phase 6: プロジェクトチャット | 6時間        |
+| Phase 7: 確認/自走モード      | 2時間        |
+| Phase 8: 設定画面             | 4時間        |
+| 統合確認                      | 2時間        |
+| **合計**                      | **約36時間** |
 
 > ※AI支援による実装のため、純粋な人間作業時間はこの30〜40%程度と想定。
