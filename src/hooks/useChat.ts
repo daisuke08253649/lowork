@@ -42,6 +42,7 @@ type ProjectChatNotice = {
 };
 
 type UseProjectChatResult = {
+  clearNotice: () => void;
   error: string | null;
   isSending: boolean;
   messages: ChatMessage[];
@@ -327,5 +328,16 @@ export function useProjectChat(
     }
   }
 
-  return { error, isSending, messages, notice, sendProjectMessage };
+  function clearNotice(): void {
+    setNotice(null);
+  }
+
+  return {
+    clearNotice,
+    error,
+    isSending,
+    messages,
+    notice,
+    sendProjectMessage,
+  };
 }
