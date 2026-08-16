@@ -1,11 +1,14 @@
 import { Bot, CircleAlert, FilePenLine, LoaderCircle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router";
 
+import type { ProjectFileOperation } from "@/api/chat";
+import { applyFileOperation, getFileOperationErrorMessage } from "@/api/files";
 import { getOllamaModels } from "@/api/ollama";
 import { MessageInput } from "@/components/chat/MessageInput";
 import { MessageList } from "@/components/chat/MessageList";
 import { ModelSelector } from "@/components/common/ModelSelector";
+import { DiffPreview } from "@/components/project/DiffPreview";
 import { FileTree } from "@/components/project/FileTree";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -21,11 +24,26 @@ export function ProjectChat() {
   const [modelError, setModelError] = useState<string | null>(null);
   const [isLoadingModels, setIsLoadingModels] = useState(true);
   const [treeRefreshToken, setTreeRefreshToken] = useState(0);
+  const [previewFileOperation, setPreviewFileOperation] =
+    useState<ProjectFileOperation | null>(null);
+  const [isApplying, setIsApplying] = useState(false);
+  const [fileOperationError, setFileOperationError] = useState<string | null>(
+    null,
+  );
+  const [appliedFileOperation, setAppliedFileOperation] =
+    useState<ProjectFileOperation | null>(null);
+  const isApplyingRef = useRef(false);
   const project = useProjectStore((state) =>
     state.projects.find((item) => item.id === projectId),
   );
-  const { error, isSending, messages, notice, sendProjectMessage } =
-    useProjectChat(projectId);
+  const {
+    clearNotice,
+    error,
+    isSending,
+    messages,
+    notice,
+    sendProjectMessage,
+  } = useProjectChat(projectId);
 
   useEffect(() => {
     let isActive = true;
@@ -58,11 +76,28 @@ export function ProjectChat() {
     };
   }, []);
 
+  useEffect(() => {
+    if (notice?.mode === "confirm" && notice.fileOp) {
+      setFileOperationError(null);
+      setPreviewFileOperation(notice.fileOp);
+    }
+  }, [notice]);
+
+  useEffect(() => {
+    isApplyingRef.current = false;
+    setAppliedFileOperation(null);
+    setFileOperationError(null);
+    setIsApplying(false);
+    setPreviewFileOperation(null);
+  }, [projectId]);
+
   async function handleSubmit(): Promise<void> {
     if (!projectId || !model) {
       return;
     }
     const message = input;
+    setAppliedFileOperation(null);
+    setFileOperationError(null);
     setInput("");
     const result = await sendProjectMessage({
       message,
@@ -75,6 +110,28 @@ export function ProjectChat() {
       return;
     }
     setTreeRefreshToken((token) => token + 1);
+  }
+
+  async function handleApplyFileOperation(): Promise<void> {
+    if (!projectId || !previewFileOperation || isApplyingRef.current) {
+      return;
+    }
+
+    setFileOperationError(null);
+    isApplyingRef.current = true;
+    setIsApplying(true);
+    try {
+      await applyFileOperation({ projectId, ...previewFileOperation });
+      setAppliedFileOperation(previewFileOperation);
+      setPreviewFileOperation(null);
+      clearNotice();
+      setTreeRefreshToken((token) => token + 1);
+    } catch (applyError) {
+      setFileOperationError(getFileOperationErrorMessage(applyError));
+    } finally {
+      isApplyingRef.current = false;
+      setIsApplying(false);
+    }
   }
 
   const isInputDisabled = isSending || isLoadingModels || model === null;
@@ -134,7 +191,22 @@ export function ProjectChat() {
             <div className="border-t bg-background px-6 py-4">
               <div className="mx-auto max-w-3xl">
                 {displayedError ? <ChatError message={displayedError} /> : null}
-                {notice ? <ProjectChatNotice {...notice} /> : null}
+                {appliedFileOperation ? (
+                  <AppliedFileOperationNotice
+                    fileOperation={appliedFileOperation}
+                  />
+                ) : null}
+                {notice ? (
+                  <ProjectChatNotice
+                    {...notice}
+                    onPreview={() => {
+                      if (notice.fileOp) {
+                        setFileOperationError(null);
+                        setPreviewFileOperation(notice.fileOp);
+                      }
+                    }}
+                  />
+                ) : null}
                 {isSending ? (
                   <p className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
                     <LoaderCircle
@@ -150,6 +222,16 @@ export function ProjectChat() {
           </>
         )}
       </section>
+      <DiffPreview
+        error={fileOperationError}
+        fileOperation={previewFileOperation}
+        isApplying={isApplying}
+        onApply={() => void handleApplyFileOperation()}
+        onClose={() => {
+          setPreviewFileOperation(null);
+          setFileOperationError(null);
+        }}
+      />
       {projectId ? (
         <FileTree
           isChatPending={isSending}
@@ -175,10 +257,12 @@ function ProjectChatNotice({
   fileOp,
   fileOpError,
   mode,
+  onPreview,
 }: {
   fileOp: { action: "create" | "edit"; filename: string } | null;
   fileOpError: string | null;
   mode: "confirm" | "auto";
+  onPreview: () => void;
 }) {
   if (fileOpError) {
     const title = fileOp
@@ -203,12 +287,33 @@ function ProjectChatNotice({
   const description =
     mode === "auto"
       ? "自走モードでファイル操作を適用しました。"
-      : "適用の操作は準備中です。";
+      : "内容を確認して適用してください。";
   return (
     <Alert className="mb-3">
       <FilePenLine aria-hidden="true" />
       <AlertTitle>{title}</AlertTitle>
-      <AlertDescription>{description}</AlertDescription>
+      <AlertDescription className="flex items-center justify-between gap-3">
+        <span>{description}</span>
+        {mode === "confirm" ? (
+          <Button size="sm" variant="outline" onClick={onPreview}>
+            プレビューを開く
+          </Button>
+        ) : null}
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+function AppliedFileOperationNotice({
+  fileOperation,
+}: {
+  fileOperation: ProjectFileOperation;
+}) {
+  const action = fileOperation.action === "create" ? "作成" : "編集";
+  return (
+    <Alert className="mb-3">
+      <FilePenLine aria-hidden="true" />
+      <AlertTitle>{`${fileOperation.filename} を${action}しました`}</AlertTitle>
     </Alert>
   );
 }
