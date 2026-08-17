@@ -18,7 +18,6 @@ import { useProjectStore } from "@/store/projectStore";
 export function ProjectChat() {
   const { projectId } = useParams();
   const [input, setInput] = useState("");
-  const [isAutoMode, setIsAutoMode] = useState(false);
   const [model, setModel] = useState<string | null>(null);
   const [models, setModels] = useState<string[]>([]);
   const [modelError, setModelError] = useState<string | null>(null);
@@ -36,6 +35,8 @@ export function ProjectChat() {
   const project = useProjectStore((state) =>
     state.projects.find((item) => item.id === projectId),
   );
+  const executionMode = useProjectStore((state) => state.executionMode);
+  const setExecutionMode = useProjectStore((state) => state.setExecutionMode);
   const {
     clearNotice,
     error,
@@ -101,7 +102,7 @@ export function ProjectChat() {
     setInput("");
     const result = await sendProjectMessage({
       message,
-      mode: isAutoMode ? "auto" : "confirm",
+      mode: executionMode,
       model,
       projectId,
     });
@@ -146,14 +147,16 @@ export function ProjectChat() {
           value={model}
         />
         <Button
-          aria-pressed={isAutoMode}
+          aria-pressed={executionMode === "auto"}
           disabled={isSending}
           type="button"
-          variant={isAutoMode ? "default" : "outline"}
-          onClick={() => setIsAutoMode((enabled) => !enabled)}
+          variant={executionMode === "auto" ? "default" : "outline"}
+          onClick={() =>
+            setExecutionMode(executionMode === "auto" ? "confirm" : "auto")
+          }
         >
           <FilePenLine aria-hidden="true" />
-          {isAutoMode ? "自走モード" : "確認モード"}
+          {executionMode === "auto" ? "自走モード" : "確認モード"}
         </Button>
       </div>
       <MessageInput
