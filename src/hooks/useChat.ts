@@ -10,6 +10,7 @@ import {
   type ProjectFileOperation,
 } from "@/api/chat";
 import { useChatStore } from "@/store/chatStore";
+import { useProjectHistoryStore } from "@/store/projectHistoryStore";
 import type { ChatMessage } from "@/types/chat";
 
 type SendMessageParams = {
@@ -18,6 +19,7 @@ type SendMessageParams = {
 };
 
 type SendMessageResult = {
+  conversationId?: string;
   shouldRestoreInput: boolean;
 };
 
@@ -238,24 +240,87 @@ export function useChat(): UseChatResult {
 
 export function useProjectChat(
   projectId: string | undefined,
+  requestedConversationId: string | null,
 ): UseProjectChatResult {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [notice, setNotice] = useState<ProjectChatNotice | null>(null);
+  const conversationIdRef = useRef<string | null>(null);
   const requestIdRef = useRef(0);
   const isSendingRef = useRef(false);
+
+  function updateConversationId(nextConversationId: string | null): void {
+    conversationIdRef.current = nextConversationId;
+    setConversationId(nextConversationId);
+  }
 
   useEffect(() => {
     requestIdRef.current += 1;
     isSendingRef.current = false;
-    setConversationId(null);
+    updateConversationId(null);
     setError(null);
     setMessages([]);
     setNotice(null);
     setIsSending(false);
   }, [projectId]);
+
+  useEffect(() => {
+    if (
+      requestedConversationId !== null &&
+      requestedConversationId === conversationIdRef.current
+    ) {
+      return;
+    }
+
+    requestIdRef.current += 1;
+    isSendingRef.current = false;
+    setError(null);
+    setNotice(null);
+
+    if (!projectId || !requestedConversationId) {
+      updateConversationId(null);
+      setMessages([]);
+      setIsSending(false);
+      return;
+    }
+
+    const conversationIdToLoad = requestedConversationId;
+    const projectIdToLoad = projectId;
+    let isActive = true;
+
+    updateConversationId(null);
+    setMessages([]);
+
+    async function loadProjectConversation(): Promise<void> {
+      setIsSending(true);
+      try {
+        const loadedMessages = await getChatMessages(
+          conversationIdToLoad,
+          projectIdToLoad,
+        );
+        if (!isActive) {
+          return;
+        }
+        updateConversationId(conversationIdToLoad);
+        setMessages(loadedMessages);
+      } catch {
+        if (isActive) {
+          setError("会話履歴の取得に失敗しました");
+        }
+      } finally {
+        if (isActive) {
+          setIsSending(false);
+        }
+      }
+    }
+
+    void loadProjectConversation();
+    return () => {
+      isActive = false;
+    };
+  }, [projectId, requestedConversationId]);
 
   async function sendProjectMessage({
     message,
@@ -294,7 +359,7 @@ export function useProjectChat(
       }
       const assistantContent =
         response.message.trim() || "応答を受け取りました。";
-      setConversationId(response.conversationId);
+      updateConversationId(response.conversationId);
       setMessages((currentMessages) => [
         ...currentMessages,
         {
@@ -308,7 +373,11 @@ export function useProjectChat(
         fileOpError: response.fileOpError,
         mode: response.mode,
       });
-      return { shouldRestoreInput: false };
+      useProjectHistoryStore.getState().refreshProjectHistory();
+      return {
+        conversationId: response.conversationId,
+        shouldRestoreInput: false,
+      };
     } catch (requestError) {
       if (requestId !== requestIdRef.current) {
         return { shouldRestoreInput: false };

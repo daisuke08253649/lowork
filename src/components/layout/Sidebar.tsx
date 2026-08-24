@@ -1,11 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   FolderKanban,
   MessageSquarePlus,
   Settings,
   Trash2,
 } from "lucide-react";
-import { useLocation, useNavigate } from "react-router";
+import { matchPath, useLocation, useNavigate } from "react-router";
 
 import { Button } from "@/components/ui/button";
 import { OllamaWarningBanner } from "@/components/common/OllamaWarningBanner";
@@ -15,7 +15,14 @@ import {
   removeChatConversation,
   startNewChat,
 } from "@/hooks/useChat";
+import { deleteChatConversation, getChatConversations } from "@/api/chat";
 import { useChatStore } from "@/store/chatStore";
+import { useOllamaStatusStore } from "@/store/ollamaStatusStore";
+import { useProjectHistoryStore } from "@/store/projectHistoryStore";
+
+const TITLE_REFRESH_INTERVAL_MS = 5_000;
+const TITLE_REFRESH_MAX_ATTEMPTS = 24;
+const DEFAULT_CONVERSATION_TITLE = "新しいチャット";
 
 const navigationItems = [
   { label: "新しいチャット", path: "/", icon: MessageSquarePlus },
@@ -32,6 +39,36 @@ export function Sidebar() {
   const conversations = useChatStore((state) => state.conversations);
   const isHistoryLoading = useChatStore((state) => state.isHistoryLoading);
   const isStreaming = useChatStore((state) => state.isStreaming);
+  const [projectConversations, setProjectConversations] = useState<
+    typeof conversations
+  >([]);
+  const [isProjectHistoryLoading, setIsProjectHistoryLoading] = useState(false);
+  const [projectHistoryError, setProjectHistoryError] = useState<string | null>(
+    null,
+  );
+  const titleRefreshAttemptsRef = useRef(0);
+  const titleRefreshProjectIdRef = useRef<string | undefined>(undefined);
+  const projectHistoryRefreshToken = useProjectHistoryStore(
+    (state) => state.refreshToken,
+  );
+  const ollamaRecoveryToken = useOllamaStatusStore(
+    (state) => state.recoveryToken,
+  );
+  const projectId = matchPath("/projects/:projectId", location.pathname)?.params
+    .projectId;
+  const activeProjectConversationId = new URLSearchParams(location.search).get(
+    "conversation",
+  );
+  const displayedConversations = projectId
+    ? projectConversations
+    : conversations;
+  const displayedActiveConversationId = projectId
+    ? activeProjectConversationId
+    : activeConversationId;
+  const isDisplayedHistoryLoading = projectId
+    ? isProjectHistoryLoading
+    : isHistoryLoading;
+  const displayedHistoryError = projectId ? projectHistoryError : null;
 
   function isNavigationItemActive(path: string): boolean {
     return path === "/"
@@ -40,8 +77,59 @@ export function Sidebar() {
   }
 
   useEffect(() => {
-    void loadChatConversations();
-  }, []);
+    if (!projectId) {
+      void loadChatConversations();
+      return;
+    }
+
+    if (titleRefreshProjectIdRef.current !== projectId) {
+      titleRefreshProjectIdRef.current = projectId;
+      titleRefreshAttemptsRef.current = 0;
+    }
+
+    let isActive = true;
+    let titleRefreshTimeout: number | undefined;
+
+    async function loadProjectConversations(): Promise<void> {
+      setIsProjectHistoryLoading(true);
+      try {
+        const loadedConversations = await getChatConversations(projectId);
+        if (isActive) {
+          setProjectConversations(loadedConversations);
+          setProjectHistoryError(null);
+          const hasUntitledConversation = loadedConversations.some(
+            (conversation) => conversation.title === DEFAULT_CONVERSATION_TITLE,
+          );
+          if (!hasUntitledConversation) {
+            titleRefreshAttemptsRef.current = 0;
+          } else if (
+            titleRefreshAttemptsRef.current < TITLE_REFRESH_MAX_ATTEMPTS
+          ) {
+            titleRefreshAttemptsRef.current += 1;
+            titleRefreshTimeout = window.setTimeout(() => {
+              useProjectHistoryStore.getState().refreshProjectHistory();
+            }, TITLE_REFRESH_INTERVAL_MS);
+          }
+        }
+      } catch {
+        if (isActive) {
+          setProjectHistoryError("チャット履歴の取得に失敗しました");
+        }
+      } finally {
+        if (isActive) {
+          setIsProjectHistoryLoading(false);
+        }
+      }
+    }
+
+    void loadProjectConversations();
+    return () => {
+      isActive = false;
+      if (titleRefreshTimeout !== undefined) {
+        window.clearTimeout(titleRefreshTimeout);
+      }
+    };
+  }, [projectId, projectHistoryRefreshToken, ollamaRecoveryToken]);
 
   function handleNavigate(path: string): void {
     if (path === "/") {
@@ -53,6 +141,10 @@ export function Sidebar() {
   async function handleConversationSelect(
     conversationId: string,
   ): Promise<void> {
+    if (projectId) {
+      navigate(`/projects/${projectId}?conversation=${conversationId}`);
+      return;
+    }
     await loadChatConversation(conversationId);
     navigate("/");
   }
@@ -60,6 +152,22 @@ export function Sidebar() {
   async function handleConversationDelete(
     conversationId: string,
   ): Promise<void> {
+    if (projectId) {
+      try {
+        await deleteChatConversation(conversationId);
+        setProjectConversations((currentConversations) =>
+          currentConversations.filter(
+            (conversation) => conversation.id !== conversationId,
+          ),
+        );
+        if (activeProjectConversationId === conversationId) {
+          navigate(`/projects/${projectId}`);
+        }
+      } catch {
+        // プロジェクト会話の削除失敗は、次回の一覧取得で再試行できるよう表示を維持する。
+      }
+      return;
+    }
     await removeChatConversation(conversationId);
   }
 
@@ -102,15 +210,26 @@ export function Sidebar() {
           チャット履歴
         </h2>
         <div className="mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto">
-          {isHistoryLoading && conversations.length === 0 && (
-            <p className="px-2 text-sm text-muted-foreground">読み込み中...</p>
-          )}
-          {!isHistoryLoading && conversations.length === 0 && (
-            <p className="px-2 text-sm text-muted-foreground">
-              履歴はまだありません
+          {displayedHistoryError ? (
+            <p className="px-2 text-sm text-destructive">
+              {displayedHistoryError}
             </p>
-          )}
-          {conversations.map((conversation) => (
+          ) : null}
+          {!displayedHistoryError &&
+            isDisplayedHistoryLoading &&
+            displayedConversations.length === 0 && (
+              <p className="px-2 text-sm text-muted-foreground">
+                読み込み中...
+              </p>
+            )}
+          {!displayedHistoryError &&
+            !isDisplayedHistoryLoading &&
+            displayedConversations.length === 0 && (
+              <p className="px-2 text-sm text-muted-foreground">
+                履歴はまだありません
+              </p>
+            )}
+          {displayedConversations.map((conversation) => (
             <div
               key={conversation.id}
               className="group flex items-center gap-1 rounded-md pr-1 hover:bg-sidebar-accent"
@@ -119,7 +238,7 @@ export function Sidebar() {
                 className="min-w-0 flex-1 justify-start truncate"
                 disabled={isStreaming}
                 variant={
-                  activeConversationId === conversation.id
+                  displayedActiveConversationId === conversation.id
                     ? "secondary"
                     : "ghost"
                 }
