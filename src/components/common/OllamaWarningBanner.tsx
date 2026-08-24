@@ -1,13 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { TriangleAlert } from "lucide-react";
 
 import { getOllamaStatus } from "@/api/ollama";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useOllamaStatusStore } from "@/store/ollamaStatusStore";
 
 const POLLING_INTERVAL_MS = 5_000;
 
 export function OllamaWarningBanner() {
-  const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
+  const isAvailable = useOllamaStatusStore((state) => state.isAvailable);
+  const setAvailability = useOllamaStatusStore(
+    (state) => state.setAvailability,
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -16,11 +20,11 @@ export function OllamaWarningBanner() {
       try {
         const status = await getOllamaStatus();
         if (isMounted) {
-          setIsAvailable(status.available);
+          setAvailability(status.available);
         }
       } catch {
         if (isMounted) {
-          setIsAvailable(false);
+          setAvailability(false);
         }
       }
     }
@@ -35,7 +39,7 @@ export function OllamaWarningBanner() {
       isMounted = false;
       window.clearInterval(intervalId);
     };
-  }, []);
+  }, [setAvailability]);
 
   if (isAvailable !== false) {
     return null;

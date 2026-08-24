@@ -115,10 +115,20 @@ async def get_ollama_error_message(response: httpx.Response) -> str:
     try:
         payload = json.loads(body)
     except ValueError:
-        return "Ollamaでエラーが発生しました"
-    if isinstance(payload, dict) and isinstance(payload.get("error"), str):
-        return payload["error"]
-    return "Ollamaでエラーが発生しました"
+        return "Ollamaで応答を生成できませんでした"
+    if not isinstance(payload, dict) or not isinstance(payload.get("error"), str):
+        return "Ollamaで応答を生成できませんでした"
+
+    error_message = payload["error"].lower()
+    if "not found" in error_message:
+        return "指定したモデルが見つかりません。設定画面でモデルを確認してください"
+    if "does not support chat" in error_message:
+        return (
+            "選択したモデルはチャットに対応していません。別のモデルを選択してください"
+        )
+    if "requires more system memory" in error_message:
+        return "メモリが不足しています。より小さいモデルを選択してください"
+    return "Ollamaで応答を生成できませんでした"
 
 
 def build_project_system_prompt(context: str) -> str:
@@ -347,8 +357,15 @@ async def get_chat_conversations(
     "/chat/conversations/{conversation_id}/messages",
     response_model=list[ChatMessageResponse],
 )
-async def get_chat_messages(conversation_id: str) -> list[ChatMessageResponse]:
-    conversation = await get_conversation(conversation_id)
+async def get_chat_messages(
+    conversation_id: str,
+    project_id: str | None = Query(default=None),
+) -> list[ChatMessageResponse]:
+    conversation = (
+        await get_project_conversation(conversation_id, project_id)
+        if project_id
+        else await get_conversation(conversation_id)
+    )
     if conversation is None:
         raise HTTPException(status_code=404, detail="会話が見つかりません")
     messages = await get_conversation_messages(conversation_id)
@@ -436,7 +453,11 @@ async def post_project_chat(
         chat_history = await get_conversation_history(request_data.conversation_id)
 
     try:
-        await index_project(request_data.project_id, Path(project.folder_path))
+        await index_project(
+            request_data.project_id,
+            Path(project.folder_path),
+            raise_on_error=True,
+        )
     except ConnectionError as exc:
         raise HTTPException(status_code=503, detail="Ollamaに接続できません") from exc
     except Exception as exc:

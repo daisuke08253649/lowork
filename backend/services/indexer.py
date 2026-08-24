@@ -75,7 +75,12 @@ def find_project_files(project_folder: Path) -> ProjectFileScan:
     )
 
 
-async def index_project(project_id: str, project_folder: Path) -> None:
+async def index_project(
+    project_id: str,
+    project_folder: Path,
+    *,
+    raise_on_error: bool = False,
+) -> None:
     processed_files = 0
     total_files = 0
     has_errors = False
@@ -134,6 +139,8 @@ async def index_project(project_id: str, project_folder: Path) -> None:
         logger.warning("プロジェクトのインデックス構築に失敗しました", exc_info=True)
         progress = processed_files * 100 // total_files if total_files else 0
         fail_indexing(project_id, progress)
+        if raise_on_error:
+            raise
 
 
 def start_project_indexing(project_id: str, project_folder: str) -> None:

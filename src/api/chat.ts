@@ -227,8 +227,12 @@ export async function sendProjectChat(
   }
 }
 
-export async function getChatConversations(): Promise<ChatConversation[]> {
-  const response = await apiClient.get<unknown>("/chat/conversations");
+export async function getChatConversations(
+  projectId?: string,
+): Promise<ChatConversation[]> {
+  const response = await apiClient.get<unknown>("/chat/conversations", {
+    params: projectId ? { project_id: projectId } : undefined,
+  });
   return z
     .array(chatConversationSchema)
     .parse(response.data)
@@ -237,9 +241,11 @@ export async function getChatConversations(): Promise<ChatConversation[]> {
 
 export async function getChatMessages(
   conversationId: string,
+  projectId?: string,
 ): Promise<ChatMessage[]> {
   const response = await apiClient.get<unknown>(
     `/chat/conversations/${conversationId}/messages`,
+    { params: projectId ? { project_id: projectId } : undefined },
   );
   return z.array(chatMessageSchema).parse(response.data).map(toChatMessage);
 }

@@ -30,6 +30,7 @@ class OllamaStatusResponse(BaseModel):
 
 
 class OllamaModel(BaseModel):
+    capabilities: list[str] = Field(default_factory=list)
     name: str
 
 
@@ -39,6 +40,10 @@ class OllamaTagsResponse(BaseModel):
 
 class OllamaModelsResponse(BaseModel):
     models: list[str]
+
+
+def supports_chat(model: OllamaModel) -> bool:
+    return not model.capabilities or "completion" in model.capabilities
 
 
 class SystemSpecsResponse(BaseModel):
@@ -152,7 +157,9 @@ async def get_ollama_models() -> OllamaModelsResponse:
         tags = await fetch_tags()
     except (httpx.HTTPError, ValueError) as exc:
         raise HTTPException(status_code=503, detail="Ollamaに接続できません") from exc
-    return OllamaModelsResponse(models=[model.name for model in tags.models])
+    return OllamaModelsResponse(
+        models=[model.name for model in tags.models if supports_chat(model)]
+    )
 
 
 @system_router.get("/system/specs", response_model=SystemSpecsResponse)

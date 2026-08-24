@@ -14,6 +14,7 @@ import {
   ProgressValue,
 } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { useOllamaStatusStore } from "@/store/ollamaStatusStore";
 
 const INDEX_STATUS_POLL_INTERVAL_MS = 2_000;
 
@@ -114,6 +115,9 @@ export function FileTree({
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
   const [treeError, setTreeError] = useState<string | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
+  const ollamaRecoveryToken = useOllamaStatusStore(
+    (state) => state.recoveryToken,
+  );
 
   useEffect(() => {
     let isActive = true;
@@ -176,7 +180,7 @@ export function FileTree({
         window.clearInterval(intervalId);
       }
     };
-  }, [isChatPending, projectId, refreshToken]);
+  }, [isChatPending, projectId, refreshToken, ollamaRecoveryToken]);
 
   const error = treeError ?? statusError;
 

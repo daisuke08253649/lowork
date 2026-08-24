@@ -1,6 +1,12 @@
-import { Bot, CircleAlert, FilePenLine, LoaderCircle } from "lucide-react";
+import {
+  Bot,
+  CircleAlert,
+  FilePenLine,
+  LoaderCircle,
+  MessageSquarePlus,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import type { ProjectFileOperation } from "@/api/chat";
 import { applyFileOperation, getFileOperationErrorMessage } from "@/api/files";
@@ -13,12 +19,17 @@ import { FileTree } from "@/components/project/FileTree";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { useProjectChat } from "@/hooks/useChat";
+import { loadProjects } from "@/hooks/useProject";
+import { useModelStore } from "@/store/modelStore";
+import { useOllamaStatusStore } from "@/store/ollamaStatusStore";
 import { useProjectStore } from "@/store/projectStore";
 
 export function ProjectChat() {
   const { projectId } = useParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedConversationId = searchParams.get("conversation");
   const [input, setInput] = useState("");
-  const [model, setModel] = useState<string | null>(null);
   const [models, setModels] = useState<string[]>([]);
   const [modelError, setModelError] = useState<string | null>(null);
   const [isLoadingModels, setIsLoadingModels] = useState(true);
@@ -32,11 +43,17 @@ export function ProjectChat() {
   const [appliedFileOperation, setAppliedFileOperation] =
     useState<ProjectFileOperation | null>(null);
   const isApplyingRef = useRef(false);
+  const submittedConversationIdRef = useRef<string | null>(null);
   const project = useProjectStore((state) =>
     state.projects.find((item) => item.id === projectId),
   );
   const executionMode = useProjectStore((state) => state.executionMode);
   const setExecutionMode = useProjectStore((state) => state.setExecutionMode);
+  const model = useModelStore((state) => state.selectedModel);
+  const setModel = useModelStore((state) => state.setSelectedModel);
+  const ollamaRecoveryToken = useOllamaStatusStore(
+    (state) => state.recoveryToken,
+  );
   const {
     clearNotice,
     error,
@@ -44,7 +61,16 @@ export function ProjectChat() {
     messages,
     notice,
     sendProjectMessage,
-  } = useProjectChat(projectId);
+  } = useProjectChat(projectId, requestedConversationId);
+
+  useEffect(() => {
+    if (project || !projectId) {
+      return;
+    }
+    void loadProjects(true).catch(() => {
+      // ファイルツリー側のエラー表示を優先し、見出しは既定値を維持する。
+    });
+  }, [project, projectId]);
 
   useEffect(() => {
     let isActive = true;
@@ -56,7 +82,11 @@ export function ProjectChat() {
           return;
         }
         setModels(response.models);
-        setModel(response.models[0] ?? null);
+        setModel(
+          response.models.includes(model ?? "")
+            ? model
+            : (response.models[0] ?? null),
+        );
         if (response.models.length === 0) {
           setModelError("利用可能なOllamaモデルがありません");
         }
@@ -75,7 +105,7 @@ export function ProjectChat() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [model, setModel, ollamaRecoveryToken]);
 
   useEffect(() => {
     if (notice?.mode === "confirm" && notice.fileOp) {
@@ -85,12 +115,21 @@ export function ProjectChat() {
   }, [notice]);
 
   useEffect(() => {
+    if (
+      submittedConversationIdRef.current !== null &&
+      requestedConversationId === submittedConversationIdRef.current
+    ) {
+      submittedConversationIdRef.current = null;
+      return;
+    }
+
     isApplyingRef.current = false;
+    submittedConversationIdRef.current = null;
     setAppliedFileOperation(null);
     setFileOperationError(null);
     setIsApplying(false);
     setPreviewFileOperation(null);
-  }, [projectId]);
+  }, [projectId, requestedConversationId]);
 
   async function handleSubmit(): Promise<void> {
     if (!projectId || !model) {
@@ -109,6 +148,14 @@ export function ProjectChat() {
     if (result.shouldRestoreInput) {
       setInput(message);
       return;
+    }
+    if (result.conversationId) {
+      if (requestedConversationId !== result.conversationId) {
+        submittedConversationIdRef.current = result.conversationId;
+      }
+      navigate(`?conversation=${encodeURIComponent(result.conversationId)}`, {
+        replace: true,
+      });
     }
     setTreeRefreshToken((token) => token + 1);
   }
@@ -158,6 +205,17 @@ export function ProjectChat() {
           <FilePenLine aria-hidden="true" />
           {executionMode === "auto" ? "自走モード" : "確認モード"}
         </Button>
+        {projectId ? (
+          <Button
+            disabled={isSending}
+            type="button"
+            variant="outline"
+            onClick={() => navigate(`/projects/${projectId}`)}
+          >
+            <MessageSquarePlus aria-hidden="true" />
+            このプロジェクトで新しい会話
+          </Button>
+        ) : null}
       </div>
       <MessageInput
         disabled={isInputDisabled}

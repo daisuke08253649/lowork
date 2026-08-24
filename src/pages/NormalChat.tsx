@@ -7,14 +7,20 @@ import { MessageList } from "@/components/chat/MessageList";
 import { ModelSelector } from "@/components/common/ModelSelector";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useChat } from "@/hooks/useChat";
+import { useModelStore } from "@/store/modelStore";
+import { useOllamaStatusStore } from "@/store/ollamaStatusStore";
 
 export function NormalChat() {
   const [input, setInput] = useState("");
-  const [model, setModel] = useState<string | null>(null);
   const [models, setModels] = useState<string[]>([]);
   const [modelError, setModelError] = useState<string | null>(null);
   const [isLoadingModels, setIsLoadingModels] = useState(true);
   const { error, isStreaming, messages, sendMessage } = useChat();
+  const model = useModelStore((state) => state.selectedModel);
+  const setModel = useModelStore((state) => state.setSelectedModel);
+  const ollamaRecoveryToken = useOllamaStatusStore(
+    (state) => state.recoveryToken,
+  );
 
   useEffect(() => {
     let isActive = true;
@@ -27,7 +33,11 @@ export function NormalChat() {
         }
 
         setModels(response.models);
-        setModel(response.models[0] ?? null);
+        setModel(
+          response.models.includes(model ?? "")
+            ? model
+            : (response.models[0] ?? null),
+        );
         if (response.models.length === 0) {
           setModelError("利用可能なOllamaモデルがありません");
         }
@@ -47,7 +57,7 @@ export function NormalChat() {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [model, setModel, ollamaRecoveryToken]);
 
   async function handleSubmit(): Promise<void> {
     if (!model) {

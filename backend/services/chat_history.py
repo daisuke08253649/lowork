@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 
 import httpx
 from sqlalchemy import delete, func, select
@@ -11,6 +12,7 @@ from backend.db.models import ChatConversation, ChatMessage
 
 logger = logging.getLogger(__name__)
 conversation_locks: dict[str, asyncio.Lock] = {}
+INVALID_TITLE_PREFIXES = ("AI:", "ユーザー:", "以下の", "次の会話")
 
 
 async def get_normal_conversation(conversation_id: str) -> ChatConversation | None:
@@ -212,7 +214,7 @@ async def generate_conversation_title(
             )
             response.raise_for_status()
         title = response.json()["message"]["content"].strip().splitlines()[0][:20]
-        if not title:
+        if not is_valid_conversation_title(title):
             return
     except (httpx.HTTPError, KeyError, TypeError, ValueError, IndexError):
         logger.warning("会話タイトルを生成できませんでした", exc_info=True)
@@ -224,3 +226,12 @@ async def generate_conversation_title(
             return
         conversation.title = title
         await session.commit()
+
+
+def is_valid_conversation_title(title: str) -> bool:
+    normalized_title = title.strip()
+    return bool(
+        normalized_title
+        and not normalized_title.startswith(INVALID_TITLE_PREFIXES)
+        and re.match(r"^\d+[.)]", normalized_title) is None
+    )
