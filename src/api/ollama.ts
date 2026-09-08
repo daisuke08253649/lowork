@@ -28,6 +28,7 @@ const availableModelSchema = z.object({
 });
 
 const availableModelsSchema = z.object({
+  embedding_model: z.string(),
   models: z.array(availableModelSchema),
 });
 
@@ -48,6 +49,7 @@ export type OllamaModels = z.infer<typeof ollamaModelsSchema>;
 export type ModelCompatibility = z.infer<typeof modelCompatibilitySchema>;
 export type AvailableModel = z.infer<typeof availableModelSchema>;
 export type AvailableModelVariant = AvailableModel["variants"][number];
+export type AvailableModels = z.infer<typeof availableModelsSchema>;
 export type OllamaPullEvent = z.infer<typeof pullEventSchema>;
 
 export async function getOllamaStatus(): Promise<OllamaStatus> {
@@ -60,11 +62,11 @@ export async function getOllamaModels(): Promise<OllamaModels> {
   return ollamaModelsSchema.parse(response.data);
 }
 
-export async function getAvailableModels(): Promise<AvailableModel[]> {
+export async function getAvailableModels(): Promise<AvailableModels> {
   const response = await apiClient.get<unknown>("/ollama/available-models", {
     timeout: 0,
   });
-  return availableModelsSchema.parse(response.data).models;
+  return availableModelsSchema.parse(response.data);
 }
 
 function parseSseEvent(eventText: string): OllamaPullEvent | null {

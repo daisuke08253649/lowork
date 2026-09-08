@@ -207,7 +207,7 @@ export function Sidebar() {
           id="history-heading"
           className="px-2 text-xs font-medium text-muted-foreground"
         >
-          チャット履歴
+          {projectId ? "プロジェクトチャット履歴" : "チャット履歴"}
         </h2>
         <div className="mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto">
           {displayedHistoryError ? (
