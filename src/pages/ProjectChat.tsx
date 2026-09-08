@@ -186,6 +186,19 @@ export function ProjectChat() {
   const displayedError = modelError ?? error;
   const composer = (
     <div className="w-full space-y-3">
+      {projectId ? (
+        <div>
+          <Button
+            disabled={isSending}
+            type="button"
+            variant="outline"
+            onClick={() => navigate(`/projects/${projectId}`)}
+          >
+            <MessageSquarePlus aria-hidden="true" />
+            このプロジェクトで新しい会話
+          </Button>
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ModelSelector
           disabled={isSending || isLoadingModels || models.length === 0}
@@ -205,17 +218,6 @@ export function ProjectChat() {
           <FilePenLine aria-hidden="true" />
           {executionMode === "auto" ? "自走モード" : "確認モード"}
         </Button>
-        {projectId ? (
-          <Button
-            disabled={isSending}
-            type="button"
-            variant="outline"
-            onClick={() => navigate(`/projects/${projectId}`)}
-          >
-            <MessageSquarePlus aria-hidden="true" />
-            このプロジェクトで新しい会話
-          </Button>
-        ) : null}
       </div>
       <MessageInput
         disabled={isInputDisabled}

@@ -7,7 +7,11 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from backend.config import OLLAMA_BASE_URL, OLLAMA_TIMEOUT_SECONDS
+from backend.config import (
+    OLLAMA_BASE_URL,
+    OLLAMA_EMBEDDING_MODEL,
+    OLLAMA_TIMEOUT_SECONDS,
+)
 from backend.services.model_catalog import (
     CatalogModel,
     CompatibilityStatus,
@@ -68,6 +72,7 @@ class AvailableModelResponse(BaseModel):
 
 
 class AvailableModelsResponse(BaseModel):
+    embedding_model: str
     models: list[AvailableModelResponse]
 
 
@@ -181,7 +186,8 @@ async def get_available_models() -> AvailableModelsResponse:
 
     ram_gb = get_system_ram_bytes() / 1024**3
     return AvailableModelsResponse(
-        models=[to_available_model_response(model, ram_gb) for model in models]
+        embedding_model=OLLAMA_EMBEDDING_MODEL,
+        models=[to_available_model_response(model, ram_gb) for model in models],
     )
 
 

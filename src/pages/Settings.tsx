@@ -35,6 +35,16 @@ type PullState = {
   status: string;
 };
 
+type ModelCategory = "all" | "qwen" | "kimi" | "gpt" | "gemma";
+
+const modelCategories: { label: string; value: ModelCategory }[] = [
+  { label: "すべて", value: "all" },
+  { label: "Qwen", value: "qwen" },
+  { label: "Kimi", value: "kimi" },
+  { label: "GPT", value: "gpt" },
+  { label: "Gemma", value: "gemma" },
+];
+
 const compatibilityLabels: Record<ModelCompatibility["status"], string> = {
   available: "ダウンロード可能",
   unavailable: "ダウンロード不可",
@@ -78,6 +88,23 @@ function visibleVariants(model: AvailableModel): AvailableModelVariant[] {
   return labeledVariants.length === 1 ? labeledVariants : model.variants;
 }
 
+function matchesCategory(
+  model: AvailableModel,
+  category: ModelCategory,
+): boolean {
+  return category === "all" || model.name.toLowerCase().startsWith(category);
+}
+
+function isRequiredEmbeddingModel(
+  pullModel: string,
+  embeddingModel: string | null,
+): boolean {
+  if (!embeddingModel) {
+    return false;
+  }
+  return pullModel.split(":", 1)[0] === embeddingModel.split(":", 1)[0];
+}
+
 function CompatibilityBadge({
   compatibility,
 }: {
@@ -97,17 +124,22 @@ function CompatibilityBadge({
 
 function ModelRow({
   model,
+  embeddingModel,
   pullState,
   variant,
   onPull,
 }: {
   model: AvailableModel;
+  embeddingModel: string | null;
   pullState: PullState | null;
   variant: AvailableModelVariant;
   onPull: (modelName: string) => void;
 }) {
   const isPulling = pullState?.model === variant.pull_model;
-  const isUnavailable = variant.compatibility.status === "unavailable";
+  const isDownloadable =
+    variant.compatibility.status === "available" ||
+    variant.compatibility.status === "warning" ||
+    isRequiredEmbeddingModel(variant.pull_model, embeddingModel);
   const isDownloadInProgress = pullState?.isInProgress ?? false;
   const displayName = variant.label
     ? `${model.name}:${variant.label.toLowerCase()}`
@@ -124,9 +156,14 @@ function ModelRow({
       </td>
       <td className="px-4 py-3 text-right align-top">
         <Button
-          disabled={isUnavailable || isDownloadInProgress}
+          disabled={!isDownloadable || isDownloadInProgress}
           size="sm"
           variant="outline"
+          title={
+            isDownloadable
+              ? undefined
+              : "必要メモリを判定できないためダウンロードできません"
+          }
           onClick={() => onPull(variant.pull_model)}
         >
           <Download aria-hidden="true" />
@@ -143,9 +180,12 @@ export function Settings() {
   const theme = useThemeStore((state) => state.theme);
   const setTheme = useThemeStore((state) => state.setTheme);
   const [models, setModels] = useState<AvailableModel[]>([]);
+  const [embeddingModel, setEmbeddingModel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [pullState, setPullState] = useState<PullState | null>(null);
+  const [selectedCategory, setSelectedCategory] =
+    useState<ModelCategory>("all");
 
   useEffect(() => {
     let isActive = true;
@@ -154,7 +194,8 @@ export function Settings() {
       try {
         const result = await getAvailableModels();
         if (isActive) {
-          setModels(result);
+          setEmbeddingModel(result.embedding_model);
+          setModels(result.models);
           setError(null);
         }
       } catch {
@@ -279,6 +320,14 @@ export function Settings() {
   }
 
   const canDismissPull = pullState !== null && !pullState.isInProgress;
+  const availableCategories = modelCategories.filter(
+    (category) =>
+      category.value === "all" ||
+      models.some((model) => matchesCategory(model, category.value)),
+  );
+  const filteredModels = models.filter((model) =>
+    matchesCategory(model, selectedCategory),
+  );
 
   return (
     <section className="mx-auto w-full max-w-6xl space-y-6 px-6 py-8">
@@ -376,31 +425,61 @@ export function Settings() {
           ) : null}
 
           {!isLoading && !error ? (
-            <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full min-w-[700px] text-left text-sm">
-                <thead className="bg-muted/50 text-xs text-muted-foreground">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">モデル</th>
-                    <th className="px-4 py-3 font-medium">必要メモリ</th>
-                    <th className="px-4 py-3 font-medium">互換性</th>
-                    <th className="px-4 py-3 text-right font-medium">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {models.flatMap((model) =>
-                    visibleVariants(model).map((variant) => (
-                      <ModelRow
-                        key={variant.pull_model}
-                        model={model}
-                        pullState={pullState}
-                        variant={variant}
-                        onPull={(modelName) => void handlePull(modelName)}
-                      />
-                    )),
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <div
+                className="flex flex-wrap gap-2"
+                aria-label="モデルカテゴリ"
+                role="group"
+              >
+                {availableCategories.map((category) => (
+                  <Button
+                    key={category.value}
+                    aria-pressed={selectedCategory === category.value}
+                    size="sm"
+                    type="button"
+                    variant={
+                      selectedCategory === category.value
+                        ? "secondary"
+                        : "outline"
+                    }
+                    onClick={() => setSelectedCategory(category.value)}
+                  >
+                    {category.label}
+                  </Button>
+                ))}
+              </div>
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full min-w-[700px] text-left text-sm">
+                  <thead className="bg-muted/50 text-xs text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">モデル</th>
+                      <th className="px-4 py-3 font-medium">必要メモリ</th>
+                      <th className="px-4 py-3 font-medium">互換性</th>
+                      <th className="px-4 py-3 text-right font-medium">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredModels.flatMap((model) =>
+                      visibleVariants(model).map((variant) => (
+                        <ModelRow
+                          key={variant.pull_model}
+                          embeddingModel={embeddingModel}
+                          model={model}
+                          pullState={pullState}
+                          variant={variant}
+                          onPull={(modelName) => void handlePull(modelName)}
+                        />
+                      )),
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {filteredModels.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  このカテゴリに該当するモデルはありません。
+                </p>
+              ) : null}
+            </>
           ) : null}
         </CardContent>
       </Card>

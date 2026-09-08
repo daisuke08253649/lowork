@@ -31,7 +31,7 @@ export function MessageInput({
       return;
     }
 
-    if (event.key === "Enter" && !event.shiftKey) {
+    if (event.key === "Enter" && event.shiftKey) {
       event.preventDefault();
       if (canSubmit) {
         onSubmit();
@@ -46,16 +46,18 @@ export function MessageInput({
         disabled={disabled}
         onChange={(event) => onChange(event.currentTarget.value)}
         onKeyDown={handleKeyDown}
-        placeholder="メッセージを入力..."
+        placeholder="メッセージを入力...（Enterで改行、Shift+Enterで送信）"
+        className="max-h-[40vh] overflow-y-auto"
         value={value}
       />
       <Button
         aria-label="送信"
-        className="h-auto self-stretch"
+        className="h-10 w-24 self-start"
         disabled={!canSubmit}
         type="submit"
       >
         <SendHorizontal aria-hidden="true" />
+        送信
       </Button>
     </form>
   );

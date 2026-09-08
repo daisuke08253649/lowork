@@ -152,7 +152,7 @@
 
 - `src/components/chat/ChatBubble.tsx`: ユーザー・AI メッセージのバブル（Markdownレンダリングは `react-markdown` で対応）
 - `src/components/chat/MessageList.tsx`: メッセージ一覧（自動スクロール）
-- `src/components/chat/MessageInput.tsx`: 入力欄 + 送信ボタン（Enterキーで送信、Shift+Enterで改行）
+- `src/components/chat/MessageInput.tsx`: 入力欄 + 送信ボタン（Enterキーで改行、Shift+Enterで送信）
 - `src/components/common/ModelSelector.tsx`: Ollama モデルのドロップダウン
 
 **依存**: T1-1完了後
@@ -423,6 +423,22 @@
 - [ ] ダーク/ライト切り替えが全画面で機能する
 
 **依存**: 全フェーズ完了後
+
+---
+
+## Phase 10: MVP後UI改善
+
+### T10-1: 設定・チャットUIの操作性改善 ⏱2時間 🤖AI
+
+**作業内容**:
+
+- 設定画面の「判定不能」モデルをダウンロード不可としてグレーアウトする。ただし、プロジェクト機能に必須のEmbeddingモデルはダウンロード可能にし、モデルカテゴリ（すべて / Qwen / Kimi / GPT / Gemma）で一覧を絞り込めるようにする
+- プロジェクトチャット画面でのみ、左サイドバーの見出しを「プロジェクトチャット履歴」に変更する
+- 「このプロジェクトで新しい会話」ボタンをモデル選択・モード切替の上へ配置する
+- 共通メッセージ入力欄の送信ボタンを横長にし、Enterで改行・Shift+Enterで送信する
+- 動作確認: 互換性ごとのボタン状態、カテゴリ絞り込み、通常・プロジェクトチャット双方のキーボード操作と送信ボタン表示
+
+**依存**: T9-1完了後
 
 ---
 
