@@ -40,11 +40,12 @@ gh pr comment <PR番号> --body "@codex review"
 1. Claude Codeは実装が完了したら機能ブランチをpushし、`develop`を向いたPRを作成する（`gh pr create --base develop`）
    - PRタイトル: `T{フェーズ}-{連番}: 内容`（Issue対応の場合は対象のIssue番号も入れる）
    - PR本文に書く内容: 実装したタスクID・Issue番号と概要、変更したファイル、設計判断で迷った点・独自に判断した点、確認結果（Lint・ビルド・動作確認）、開発者に手動で確認してほしい項目
-   - Issueに対応するPRは、本文に`Closes #番号`を書き、マージ時にIssueが自動でクローズされるようにする
+   - Issueに対応するPRは、本文に`Refs #番号`を書いてIssueと関連付ける。リポジトリのデフォルトブランチは`main`なので、`develop`向けのPRに`Closes #番号`を書いてもIssueは自動でクローズされない
 2. PRを作成したら、PRに`@codex review`とコメントする
 3. Codexのレビュー結果（PRのレビューコメント）を確認する
    - 指摘がある場合: Claude Codeが修正してコミット＆pushし、もう一度`@codex review`とコメントする。指摘に対応しない場合は、その理由をPRにコメントで残す
    - 指摘がない場合: 開発者に報告する
 4. 開発者の承認を得たら、PRを`develop`にマージする（`gh pr merge <PR番号> --merge`）。マージ後、ローカルの機能ブランチは削除してよい
+5. Issueに対応するPRをマージしたら、対応したIssueを手動でクローズする（`gh issue close <Issue番号> --comment "PR #<PR番号> でdevelopにマージしました"`）
 
 > `docs/reviews/`配下のmdファイル（`*_impl.md` / `*_review.md`）は、PRによるレビューに移行する前（T10-2まで）の作業記録として残す。新しいタスクでは作成しない。
