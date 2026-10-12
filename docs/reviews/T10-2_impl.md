@@ -21,7 +21,7 @@
 
 ### #9 Tauriの多層防御（Low）
 
-- `tauri.conf.json` に `csp`（本番）と `devCsp`（開発。Vite dev server・HMR用に `localhost:1420` と `'unsafe-inline'` を許可）を設定した。`connect-src` はIPCとローカルAPI（`127.0.0.1:8000` / `localhost:8000`）に限定した。
+- `tauri.conf.json` に `csp`（本番）と `devCsp`（開発時用。`localhost:1420` と `'unsafe-inline'` を許可。ただしmacOSの `tauri dev` では適用されない。レビュー対応（第1回）参照）を設定した。`connect-src` はIPCとローカルAPI（`127.0.0.1:8000` / `localhost:8000`）に限定した。
 - `capabilities/default.json` から `shell:allow-execute` と `opener:default` を削除した。サイドカーの起動はRust側の `app.shell()` から行っており、フロントエンドの権限は不要。
 - テンプレートに由来する未使用の `greet` コマンドを削除した。
 
@@ -74,6 +74,12 @@
 
 ## 手動確認項目
 
-- `npm run tauri dev` で画面が表示され、通常チャット・プロジェクトチャット・ファイル選択ダイアログが動くこと（CSPの影響確認）
+- `npm run tauri dev` でFastAPIが自動起動し、画面が表示され、通常チャット・プロジェクトチャット・ファイル選択ダイアログが動くこと（capabilityの削除による影響の確認）
+- （任意）`npm run tauri build` で作ったアプリを起動し、画面表示とAPI通信が動くこと（本番CSPの影響の確認。配布用バンドルはMVP対象外）
 - 自走モードで既存ファイルを編集したあと「元に戻す」で元の内容に戻ること
 - 確認モードでのファイル適用が従来どおり動くこと
+
+## レビュー対応（第1回）
+
+- 軽微1: Tauri 2.11.5 では、開発サーバーをプロキシしてCSPを挿入するのはモバイル開発時だけで、macOSの `tauri dev` では `devCsp` が適用されない。`design.md` 8章にこの点を補足した。手動確認項目は、`tauri dev` での確認（capabilityの削除による影響）と、`tauri build` 後のアプリでの確認（本番CSPの影響。任意）に分けた。`implementation_plan.md` T10-2 の動作確認も同じように修正した。
+- 軽微2〜5: レビューで「MVPとして許容」と判断されたため、対応しない。軽微5（自走モードでの改ざんの残存リスク）は、Issue #8 をクローズするときにコメントとして記録する。
