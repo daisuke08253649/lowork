@@ -4,6 +4,7 @@ import {
   FilePenLine,
   LoaderCircle,
   MessageSquarePlus,
+  Undo2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
@@ -42,6 +43,8 @@ export function ProjectChat() {
   );
   const [appliedFileOperation, setAppliedFileOperation] =
     useState<ProjectFileOperation | null>(null);
+  const [restoredFilename, setRestoredFilename] = useState<string | null>(null);
+  const [undoError, setUndoError] = useState<string | null>(null);
   const isApplyingRef = useRef(false);
   const submittedConversationIdRef = useRef<string | null>(null);
   const project = useProjectStore((state) =>
@@ -126,6 +129,8 @@ export function ProjectChat() {
     isApplyingRef.current = false;
     submittedConversationIdRef.current = null;
     setAppliedFileOperation(null);
+    setRestoredFilename(null);
+    setUndoError(null);
     setFileOperationError(null);
     setIsApplying(false);
     setPreviewFileOperation(null);
@@ -137,6 +142,8 @@ export function ProjectChat() {
     }
     const message = input;
     setAppliedFileOperation(null);
+    setRestoredFilename(null);
+    setUndoError(null);
     setFileOperationError(null);
     setInput("");
     const result = await sendProjectMessage({
@@ -176,6 +183,40 @@ export function ProjectChat() {
       setTreeRefreshToken((token) => token + 1);
     } catch (applyError) {
       setFileOperationError(getFileOperationErrorMessage(applyError));
+    } finally {
+      isApplyingRef.current = false;
+      setIsApplying(false);
+    }
+  }
+
+  async function handleUndoAutoFileOperation(): Promise<void> {
+    const fileOp = notice?.fileOp;
+    const previousContent = notice?.previousContent;
+    if (
+      !projectId ||
+      !fileOp ||
+      previousContent === null ||
+      previousContent === undefined ||
+      isApplyingRef.current
+    ) {
+      return;
+    }
+
+    setUndoError(null);
+    isApplyingRef.current = true;
+    setIsApplying(true);
+    try {
+      await applyFileOperation({
+        projectId,
+        action: "edit",
+        filename: fileOp.filename,
+        content: previousContent,
+      });
+      setRestoredFilename(fileOp.filename);
+      clearNotice();
+      setTreeRefreshToken((token) => token + 1);
+    } catch (restoreError) {
+      setUndoError(getFileOperationErrorMessage(restoreError));
     } finally {
       isApplyingRef.current = false;
       setIsApplying(false);
@@ -259,9 +300,18 @@ export function ProjectChat() {
                     fileOperation={appliedFileOperation}
                   />
                 ) : null}
+                {restoredFilename ? (
+                  <Alert className="mb-3">
+                    <Undo2 aria-hidden="true" />
+                    <AlertTitle>{`${restoredFilename} を元に戻しました`}</AlertTitle>
+                  </Alert>
+                ) : null}
                 {notice ? (
                   <ProjectChatNotice
                     {...notice}
+                    isUndoing={isApplying}
+                    undoError={undoError}
+                    onUndo={() => void handleUndoAutoFileOperation()}
                     onPreview={() => {
                       if (notice.fileOp) {
                         setFileOperationError(null);
@@ -319,13 +369,21 @@ function ChatError({ message }: { message: string }) {
 function ProjectChatNotice({
   fileOp,
   fileOpError,
+  isUndoing,
   mode,
   onPreview,
+  onUndo,
+  previousContent,
+  undoError,
 }: {
   fileOp: { action: "create" | "edit"; filename: string } | null;
   fileOpError: string | null;
+  isUndoing: boolean;
   mode: "confirm" | "auto";
   onPreview: () => void;
+  onUndo: () => void;
+  previousContent: string | null;
+  undoError: string | null;
 }) {
   if (fileOpError) {
     const title = fileOp
@@ -351,6 +409,7 @@ function ProjectChatNotice({
     mode === "auto"
       ? "自走モードでファイル操作を適用しました。"
       : "内容を確認して適用してください。";
+  const canUndo = mode === "auto" && previousContent !== null;
   return (
     <Alert className="mb-3">
       <FilePenLine aria-hidden="true" />
@@ -362,7 +421,21 @@ function ProjectChatNotice({
             プレビューを開く
           </Button>
         ) : null}
+        {canUndo ? (
+          <Button
+            disabled={isUndoing}
+            size="sm"
+            variant="outline"
+            onClick={onUndo}
+          >
+            <Undo2 aria-hidden="true" />
+            {isUndoing ? "元に戻しています..." : "元に戻す"}
+          </Button>
+        ) : null}
       </AlertDescription>
+      {undoError ? (
+        <p className="col-start-2 mt-2 text-sm text-destructive">{undoError}</p>
+      ) : null}
     </Alert>
   );
 }

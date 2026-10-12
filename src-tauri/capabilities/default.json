@@ -5,18 +5,6 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "dialog:default",
-    "opener:default",
-    {
-      "identifier": "shell:allow-execute",
-      "allow": [
-        {
-          "name": "uvicorn",
-          "cmd": "/Users/daisuke/workspace/saino/development/lowork/backend/.venv/bin/uvicorn",
-          "args": ["backend.main:app", "--port", "8000"],
-          "sidecar": false
-        }
-      ]
-    }
+    "dialog:default"
   ]
 }

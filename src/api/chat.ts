@@ -21,6 +21,7 @@ const projectChatResponseSchema = z.object({
   message: z.string(),
   file_op: projectFileOperationSchema.nullable(),
   file_op_error: z.string().nullable(),
+  previous_content: z.string().nullable(),
   mode: z.enum(["confirm", "auto"]),
   conversation_id: z.string().uuid(),
 });
@@ -73,6 +74,7 @@ export type ProjectChatResponse = {
   fileOpError: string | null;
   message: string;
   mode: "confirm" | "auto";
+  previousContent: string | null;
 };
 
 type NormalChatEvent = z.infer<typeof normalChatEventSchema>;
@@ -221,6 +223,7 @@ export async function sendProjectChat(
       fileOpError: result.file_op_error,
       message: result.message,
       mode: result.mode,
+      previousContent: result.previous_content,
     };
   } catch (error) {
     throw await toChatError(error);
