@@ -41,6 +41,7 @@ type ProjectChatNotice = {
   fileOp: ProjectFileOperation | null;
   fileOpError: string | null;
   mode: "confirm" | "auto";
+  previousContent: string | null;
 };
 
 type UseProjectChatResult = {
@@ -372,6 +373,7 @@ export function useProjectChat(
         fileOp: response.fileOp,
         fileOpError: response.fileOpError,
         mode: response.mode,
+        previousContent: response.previousContent,
       });
       useProjectHistoryStore.getState().refreshProjectHistory();
       return {

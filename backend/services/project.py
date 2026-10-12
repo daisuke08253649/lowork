@@ -23,9 +23,14 @@ async def create_project(name: str, folder_path: str) -> Project:
     if not requested_path.is_absolute():
         raise ValueError("フォルダパスは絶対パスで指定してください")
 
-    normalized_path = str(requested_path.resolve())
-    if not await asyncio.to_thread(Path(normalized_path).is_dir):
+    resolved_path = requested_path.resolve()
+    if not await asyncio.to_thread(resolved_path.is_dir):
         raise ValueError("指定されたフォルダが見つかりません")
+    if is_too_broad_folder(resolved_path):
+        raise ValueError(
+            "ルートやホームフォルダなど範囲が広すぎるフォルダは登録できません"
+        )
+    normalized_path = str(resolved_path)
 
     project = Project(name=normalized_name, folder_path=normalized_path)
     async with async_session_factory() as session:
@@ -39,6 +44,14 @@ async def create_project(name: str, folder_path: str) -> Project:
             ) from exc
         await session.refresh(project)
         return project
+
+
+def is_too_broad_folder(folder_path: Path) -> bool:
+    # ファイル書き込み権限の及ぶ範囲を限定するため、ホームとその上位階層は対象外にする。
+    home_path = Path.home().resolve()
+    return folder_path == Path(folder_path.anchor) or home_path.is_relative_to(
+        folder_path
+    )
 
 
 async def get_project(project_id: str) -> Project | None:

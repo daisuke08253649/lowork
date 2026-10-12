@@ -1,7 +1,9 @@
 import os
 import stat
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 
 from backend.services.indexer import EXCLUDED_DIRECTORY_NAMES, is_supported_project_file
 
@@ -25,6 +27,20 @@ class TargetFileAlreadyExistsError(FileOperationError):
     pass
 
 
+def apply_file_operation(
+    action: Literal["create", "edit"],
+    project_folder: str,
+    filename: str,
+    content: str,
+    backup_folder: Path,
+) -> str | None:
+    """ファイル操作を適用し、編集時は変更前の内容を返す。"""
+    if action == "create":
+        create_file(project_folder, filename, content)
+        return None
+    return edit_file(project_folder, filename, content, backup_folder)
+
+
 def create_file(project_folder: str, filename: str, content: str) -> None:
     validate_new_filename(filename)
     project_path = get_project_path(project_folder)
@@ -44,10 +60,26 @@ def create_file(project_folder: str, filename: str, content: str) -> None:
         raise
 
 
-def edit_file(project_folder: str, filename: str, content: str) -> None:
+def edit_file(
+    project_folder: str,
+    filename: str,
+    content: str,
+    backup_folder: Path,
+) -> str:
     project_path = get_project_path(project_folder)
     target_path = get_existing_target_path(project_path, filename)
+    previous_content = target_path.read_bytes()
+    save_backup(backup_folder, filename, previous_content)
     write_file_atomically(target_path, normalize_content(content))
+    return previous_content.decode("utf-8", errors="replace")
+
+
+def save_backup(backup_folder: Path, filename: str, content: bytes) -> None:
+    # filenameは検証済みの相対パスなので、そのままバックアップ先の構造に使える。
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
+    backup_path = backup_folder / timestamp / filename
+    backup_path.parent.mkdir(parents=True, exist_ok=True)
+    backup_path.write_bytes(content)
 
 
 def get_project_path(project_folder: str) -> Path:
