@@ -35,15 +35,16 @@ type PullState = {
   status: string;
 };
 
-type ModelCategory = "all" | "qwen" | "kimi" | "gpt" | "gemma";
+type ModelCategory = {
+  count: number;
+  family: string;
+};
 
-const modelCategories: { label: string; value: ModelCategory }[] = [
-  { label: "すべて", value: "all" },
-  { label: "Qwen", value: "qwen" },
-  { label: "Kimi", value: "kimi" },
-  { label: "GPT", value: "gpt" },
-  { label: "Gemma", value: "gemma" },
-];
+const MODEL_FAMILY_PATTERN = /^[a-z]+/;
+// モデルが1件しかないファミリーはボタンを増やしすぎるため「その他」にまとめる。
+const MIN_MODELS_PER_CATEGORY = 2;
+// ファミリー名は英数字のみなので、記号を含む値は実在のファミリーと衝突しない。
+const OTHER_CATEGORY = "__other__";
 
 const compatibilityLabels: Record<ModelCompatibility["status"], string> = {
   available: "ダウンロード可能",
@@ -88,11 +89,40 @@ function visibleVariants(model: AvailableModel): AvailableModelVariant[] {
   return labeledVariants.length === 1 ? labeledVariants : model.variants;
 }
 
+// モデル名先頭の英字部分をファミリー名とする（例: qwen2.5-coder → qwen、gpt-oss → gpt）。
+function getModelFamily(modelName: string): string {
+  const normalizedName = modelName.toLowerCase();
+  return (
+    normalizedName.match(MODEL_FAMILY_PATTERN)?.[0] ??
+    normalizedName.split(/[-.:_]/)[0]
+  );
+}
+
+function buildModelCategories(models: AvailableModel[]): ModelCategory[] {
+  const counts = new Map<string, number>();
+  for (const model of models) {
+    const family = getModelFamily(model.name);
+    counts.set(family, (counts.get(family) ?? 0) + 1);
+  }
+  return [...counts]
+    .map(([family, count]) => ({ count, family }))
+    .filter((category) => category.count >= MIN_MODELS_PER_CATEGORY)
+    .sort(
+      (left, right) =>
+        right.count - left.count || left.family.localeCompare(right.family),
+    );
+}
+
 function matchesCategory(
   model: AvailableModel,
-  category: ModelCategory,
+  selectedCategory: string | null,
+  categoryFamilies: Set<string>,
 ): boolean {
-  return category === "all" || model.name.toLowerCase().startsWith(category);
+  const family = getModelFamily(model.name);
+  if (selectedCategory === OTHER_CATEGORY) {
+    return !categoryFamilies.has(family);
+  }
+  return selectedCategory === null || family === selectedCategory;
 }
 
 function isRequiredEmbeddingModel(
@@ -184,8 +214,8 @@ export function Settings() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [pullState, setPullState] = useState<PullState | null>(null);
-  const [selectedCategory, setSelectedCategory] =
-    useState<ModelCategory>("all");
+  // nullは「すべて」を表す。
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   useEffect(() => {
     let isActive = true;
@@ -320,13 +350,15 @@ export function Settings() {
   }
 
   const canDismissPull = pullState !== null && !pullState.isInProgress;
-  const availableCategories = modelCategories.filter(
-    (category) =>
-      category.value === "all" ||
-      models.some((model) => matchesCategory(model, category.value)),
+  const modelCategories = buildModelCategories(models);
+  const categoryFamilies = new Set(
+    modelCategories.map((category) => category.family),
   );
+  const otherModelCount = models.filter(
+    (model) => !categoryFamilies.has(getModelFamily(model.name)),
+  ).length;
   const filteredModels = models.filter((model) =>
-    matchesCategory(model, selectedCategory),
+    matchesCategory(model, selectedCategory, categoryFamilies),
   );
 
   return (
@@ -431,22 +463,53 @@ export function Settings() {
                 aria-label="モデルカテゴリ"
                 role="group"
               >
-                {availableCategories.map((category) => (
+                <Button
+                  aria-pressed={selectedCategory === null}
+                  size="sm"
+                  type="button"
+                  variant={selectedCategory === null ? "secondary" : "outline"}
+                  onClick={() => setSelectedCategory(null)}
+                >
+                  すべて
+                  <span className="text-muted-foreground">{models.length}</span>
+                </Button>
+                {modelCategories.map((category) => (
                   <Button
-                    key={category.value}
-                    aria-pressed={selectedCategory === category.value}
+                    key={category.family}
+                    aria-pressed={selectedCategory === category.family}
                     size="sm"
                     type="button"
                     variant={
-                      selectedCategory === category.value
+                      selectedCategory === category.family
                         ? "secondary"
                         : "outline"
                     }
-                    onClick={() => setSelectedCategory(category.value)}
+                    onClick={() => setSelectedCategory(category.family)}
                   >
-                    {category.label}
+                    {category.family}
+                    <span className="text-muted-foreground">
+                      {category.count}
+                    </span>
                   </Button>
                 ))}
+                {otherModelCount > 0 ? (
+                  <Button
+                    aria-pressed={selectedCategory === OTHER_CATEGORY}
+                    size="sm"
+                    type="button"
+                    variant={
+                      selectedCategory === OTHER_CATEGORY
+                        ? "secondary"
+                        : "outline"
+                    }
+                    onClick={() => setSelectedCategory(OTHER_CATEGORY)}
+                  >
+                    その他
+                    <span className="text-muted-foreground">
+                      {otherModelCount}
+                    </span>
+                  </Button>
+                ) : null}
               </div>
               <div className="overflow-x-auto rounded-lg border">
                 <table className="w-full min-w-[700px] text-left text-sm">
