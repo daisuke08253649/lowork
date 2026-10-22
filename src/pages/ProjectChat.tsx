@@ -16,6 +16,7 @@ import { MessageInput } from "@/components/chat/MessageInput";
 import { MessageList } from "@/components/chat/MessageList";
 import { ModelSelector } from "@/components/common/ModelSelector";
 import { DiffPreview } from "@/components/project/DiffPreview";
+import { FileEditorPanel } from "@/components/project/FileEditorPanel";
 import { FileTree } from "@/components/project/FileTree";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ import { loadProjects } from "@/hooks/useProject";
 import { useModelStore } from "@/store/modelStore";
 import { useOllamaStatusStore } from "@/store/ollamaStatusStore";
 import { useProjectStore } from "@/store/projectStore";
+import { useUnsavedChangesStore } from "@/store/unsavedChangesStore";
 
 export function ProjectChat() {
   const { projectId } = useParams();
@@ -35,6 +37,7 @@ export function ProjectChat() {
   const [modelError, setModelError] = useState<string | null>(null);
   const [isLoadingModels, setIsLoadingModels] = useState(true);
   const [treeRefreshToken, setTreeRefreshToken] = useState(0);
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [previewFileOperation, setPreviewFileOperation] =
     useState<ProjectFileOperation | null>(null);
   const [isApplying, setIsApplying] = useState(false);
@@ -50,6 +53,7 @@ export function ProjectChat() {
   const project = useProjectStore((state) =>
     state.projects.find((item) => item.id === projectId),
   );
+  const isEditorSaving = useUnsavedChangesStore((state) => state.isSaving);
   const executionMode = useProjectStore((state) => state.executionMode);
   const setExecutionMode = useProjectStore((state) => state.setExecutionMode);
   const model = useModelStore((state) => state.selectedModel);
@@ -136,8 +140,12 @@ export function ProjectChat() {
     setPreviewFileOperation(null);
   }, [projectId, requestedConversationId]);
 
+  useEffect(() => {
+    setSelectedFilePath(null);
+  }, [projectId]);
+
   async function handleSubmit(): Promise<void> {
-    if (!projectId || !model) {
+    if (!projectId || !model || isEditorSaving) {
       return;
     }
     const message = input;
@@ -192,11 +200,13 @@ export function ProjectChat() {
   async function handleUndoAutoFileOperation(): Promise<void> {
     const fileOp = notice?.fileOp;
     const previousContent = notice?.previousContent;
+    const appliedContentHash = notice?.appliedContentHash;
     if (
       !projectId ||
       !fileOp ||
       previousContent === null ||
       previousContent === undefined ||
+      !appliedContentHash ||
       isApplyingRef.current
     ) {
       return;
@@ -211,6 +221,8 @@ export function ProjectChat() {
         action: "edit",
         filename: fileOp.filename,
         content: previousContent,
+        // AIの書き込み後に手動保存などでファイルが変わっていたら、上書きせず409にする。
+        expectedHash: appliedContentHash,
       });
       setRestoredFilename(fileOp.filename);
       clearNotice();
@@ -223,7 +235,24 @@ export function ProjectChat() {
     }
   }
 
-  const isInputDisabled = isSending || isLoadingModels || model === null;
+  function handleManualSave(path: string): void {
+    // 手動保存より前に作られたAIの提案や「元に戻す」は古い内容を前提にしているため、
+    // 適用すると手動の変更を上書きしてしまう。同じファイルを対象とするものは取り消す。
+    if (notice?.fileOp?.filename === path) {
+      clearNotice();
+      setUndoError(null);
+    }
+    if (previewFileOperation?.filename === path && !isApplyingRef.current) {
+      setPreviewFileOperation(null);
+      setFileOperationError(null);
+    }
+    setTreeRefreshToken((token) => token + 1);
+  }
+
+  // 手動保存とAIのファイル操作が重なると、古い内容に基づく書き込みで手動の変更が失われる。
+  // 応答の生成中は保存を止めているので、保存中は送信を止めて両者を同時に起こさない。
+  const isInputDisabled =
+    isSending || isEditorSaving || isLoadingModels || model === null;
   const displayedError = modelError ?? error;
   const composer = (
     <div className="w-full space-y-3">
@@ -345,11 +374,24 @@ export function ProjectChat() {
           setFileOperationError(null);
         }}
       />
+      {projectId && selectedFilePath ? (
+        <FileEditorPanel
+          isChatPending={isSending}
+          projectId={projectId}
+          refreshToken={treeRefreshToken}
+          requestedPath={selectedFilePath}
+          onCancelSwitch={setSelectedFilePath}
+          onClose={() => setSelectedFilePath(null)}
+          onSaved={handleManualSave}
+        />
+      ) : null}
       {projectId ? (
         <FileTree
           isChatPending={isSending}
           projectId={projectId}
           refreshToken={treeRefreshToken}
+          selectedPath={selectedFilePath}
+          onSelectFile={setSelectedFilePath}
         />
       ) : null}
     </div>
@@ -367,6 +409,7 @@ function ChatError({ message }: { message: string }) {
 }
 
 function ProjectChatNotice({
+  appliedContentHash,
   fileOp,
   fileOpError,
   isUndoing,
@@ -376,6 +419,7 @@ function ProjectChatNotice({
   previousContent,
   undoError,
 }: {
+  appliedContentHash: string | null;
   fileOp: { action: "create" | "edit"; filename: string } | null;
   fileOpError: string | null;
   isUndoing: boolean;
@@ -409,7 +453,8 @@ function ProjectChatNotice({
     mode === "auto"
       ? "自走モードでファイル操作を適用しました。"
       : "内容を確認して適用してください。";
-  const canUndo = mode === "auto" && previousContent !== null;
+  const canUndo =
+    mode === "auto" && previousContent !== null && appliedContentHash !== null;
   return (
     <Alert className="mb-3">
       <FilePenLine aria-hidden="true" />

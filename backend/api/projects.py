@@ -1,13 +1,23 @@
 import asyncio
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from backend.api.serialization import as_utc_datetime
+from backend.config import FILE_BACKUP_PATH
 from backend.db.models import Project
+from backend.services.file_ops import (
+    FileConflictError,
+    FileOperationError,
+    FileTooLargeError,
+    TargetFileNotFoundError,
+    read_file,
+    save_file,
+)
 from backend.services.file_tree import FileTreeNode, build_file_tree
 from backend.services.index_status import (
     get_index_status,
@@ -23,6 +33,7 @@ from backend.services.project import (
 from backend.services.rag import delete_project_collection
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+logger = logging.getLogger(__name__)
 
 
 class CreateProjectRequest(BaseModel):
@@ -47,6 +58,40 @@ class FileTreeNodeResponse(BaseModel):
     path: str
     type: Literal["directory", "file"]
     children: list["FileTreeNodeResponse"] = Field(default_factory=list)
+
+
+class FileContentResponse(BaseModel):
+    path: str
+    content: str
+    content_hash: str
+
+
+class SaveFileContentRequest(BaseModel):
+    path: str = Field(min_length=1)
+    content: str
+    expected_hash: str = Field(min_length=64, max_length=64)
+
+
+class SaveFileContentResponse(BaseModel):
+    content_hash: str
+
+
+def file_operation_error_to_http(exc: FileOperationError) -> HTTPException:
+    if isinstance(exc, TargetFileNotFoundError):
+        return HTTPException(status_code=404, detail=str(exc))
+    if isinstance(exc, FileConflictError):
+        return HTTPException(status_code=409, detail=str(exc))
+    if isinstance(exc, FileTooLargeError):
+        return HTTPException(status_code=413, detail=str(exc))
+    # InvalidFilenameError・UnreadableFileErrorなど、入力に起因するものは400とする。
+    return HTTPException(status_code=400, detail=str(exc))
+
+
+async def get_existing_project(project_id: str) -> Project:
+    project = await get_project(project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="プロジェクトが見つかりません")
+    return project
 
 
 def file_tree_node_to_response(node: FileTreeNode) -> FileTreeNodeResponse:
@@ -129,3 +174,48 @@ async def get_project_files(project_id: str) -> FileTreeNodeResponse:
             detail="プロジェクトフォルダのファイル一覧を取得できません",
         ) from exc
     return file_tree_node_to_response(tree)
+
+
+@router.get("/{project_id}/files/content", response_model=FileContentResponse)
+async def get_project_file_content(
+    project_id: str,
+    path: str = Query(min_length=1),
+) -> FileContentResponse:
+    project = await get_existing_project(project_id)
+    try:
+        content, content_hash = await asyncio.to_thread(
+            read_file, project.folder_path, path
+        )
+    except FileOperationError as exc:
+        raise file_operation_error_to_http(exc) from exc
+    except OSError as exc:
+        logger.warning("ファイルの読み込みに失敗しました", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="ファイルの読み込みに失敗しました"
+        ) from exc
+    return FileContentResponse(path=path, content=content, content_hash=content_hash)
+
+
+@router.put("/{project_id}/files/content", response_model=SaveFileContentResponse)
+async def put_project_file_content(
+    project_id: str,
+    request_data: SaveFileContentRequest,
+) -> SaveFileContentResponse:
+    project = await get_existing_project(project_id)
+    try:
+        content_hash = await asyncio.to_thread(
+            save_file,
+            project.folder_path,
+            request_data.path,
+            request_data.content,
+            FILE_BACKUP_PATH / project.id,
+            request_data.expected_hash,
+        )
+    except FileOperationError as exc:
+        raise file_operation_error_to_http(exc) from exc
+    except OSError as exc:
+        logger.warning("ファイルの保存に失敗しました", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="ファイルの保存に失敗しました"
+        ) from exc
+    return SaveFileContentResponse(content_hash=content_hash)

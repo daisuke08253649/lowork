@@ -1,6 +1,8 @@
+import hashlib
 import os
 import stat
 import tempfile
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
@@ -9,6 +11,9 @@ from backend.services.indexer import EXCLUDED_DIRECTORY_NAMES, is_supported_proj
 
 MAX_FILENAME_COMPONENT_BYTES = 255
 MAX_RELATIVE_PATH_BYTES = 1_024
+MAX_EDITABLE_FILE_BYTES = 1_000_000
+file_locks: dict[Path, threading.Lock] = {}
+file_locks_guard = threading.Lock()
 
 
 class FileOperationError(Exception):
@@ -27,18 +32,31 @@ class TargetFileAlreadyExistsError(FileOperationError):
     pass
 
 
+class FileConflictError(FileOperationError):
+    pass
+
+
+class FileTooLargeError(FileOperationError):
+    pass
+
+
+class UnreadableFileError(FileOperationError):
+    pass
+
+
 def apply_file_operation(
     action: Literal["create", "edit"],
     project_folder: str,
     filename: str,
     content: str,
     backup_folder: Path,
+    expected_hash: str | None = None,
 ) -> str | None:
     """ファイル操作を適用し、編集時は変更前の内容を返す。"""
     if action == "create":
         create_file(project_folder, filename, content)
         return None
-    return edit_file(project_folder, filename, content, backup_folder)
+    return edit_file(project_folder, filename, content, backup_folder, expected_hash)
 
 
 def create_file(project_folder: str, filename: str, content: str) -> None:
@@ -65,13 +83,72 @@ def edit_file(
     filename: str,
     content: str,
     backup_folder: Path,
+    expected_hash: str | None = None,
 ) -> str:
+    """既存ファイルを書き換え、変更前の内容を返す。
+
+    expected_hashを渡した場合は、読み込み後に別の操作（自走モードなど）で
+    内容が変わっていれば書き込まずにFileConflictErrorを送出する。
+    """
     project_path = get_project_path(project_folder)
     target_path = get_existing_target_path(project_path, filename)
-    previous_content = target_path.read_bytes()
-    save_backup(backup_folder, filename, previous_content)
-    write_file_atomically(target_path, normalize_content(content))
+    # 同じファイルへの並行した書き込み（手動保存とAIの編集など）で、
+    # 両方がハッシュ検査を通過して一方の変更が失われないよう、読み込みから置換までを排他にする。
+    with get_file_lock(target_path):
+        previous_content = target_path.read_bytes()
+        if (
+            expected_hash is not None
+            and content_hash(previous_content) != expected_hash
+        ):
+            raise FileConflictError("ファイルが別の操作で変更されています")
+        save_backup(backup_folder, filename, previous_content)
+        write_file_atomically(target_path, normalize_content(content))
     return previous_content.decode("utf-8", errors="replace")
+
+
+def get_file_lock(target_path: Path) -> threading.Lock:
+    lock_key = target_path.resolve()
+    with file_locks_guard:
+        return file_locks.setdefault(lock_key, threading.Lock())
+
+
+def read_file(project_folder: str, filename: str) -> tuple[str, str]:
+    """既存ファイルの内容とハッシュを返す。"""
+    project_path = get_project_path(project_folder)
+    target_path = get_existing_target_path(project_path, filename)
+    if target_path.stat().st_size > MAX_EDITABLE_FILE_BYTES:
+        raise FileTooLargeError("ファイルが大きすぎるため表示できません")
+    content = target_path.read_bytes()
+    try:
+        # 置換文字で読むと保存時に内容が壊れるため、UTF-8として正しいものだけ扱う。
+        decoded_content = content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise UnreadableFileError(
+            "UTF-8のテキストとして読み込めないファイルです"
+        ) from exc
+    return decoded_content, content_hash(content)
+
+
+def save_file(
+    project_folder: str,
+    filename: str,
+    content: str,
+    backup_folder: Path,
+    expected_hash: str,
+) -> str:
+    """ユーザーが編集した内容を保存し、保存後のハッシュを返す。"""
+    normalized_content = normalize_content(content)
+    encoded_content = normalized_content.encode("utf-8")
+    if len(encoded_content) > MAX_EDITABLE_FILE_BYTES:
+        raise FileTooLargeError("ファイルが大きすぎるため保存できません")
+    edit_file(
+        project_folder, filename, normalized_content, backup_folder, expected_hash
+    )
+    return content_hash(encoded_content)
+
+
+def content_hash(content: bytes) -> str:
+    return hashlib.sha256(content).hexdigest()
 
 
 def save_backup(backup_folder: Path, filename: str, content: bytes) -> None:

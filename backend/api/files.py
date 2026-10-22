@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from backend.config import FILE_BACKUP_PATH
 from backend.services.file_ops import (
+    FileConflictError,
     FileOperationError,
     InvalidFilenameError,
     TargetFileAlreadyExistsError,
@@ -24,6 +25,8 @@ class ApplyFileOperationRequest(BaseModel):
     action: Literal["create", "edit"]
     filename: str = Field(min_length=1)
     content: str
+    # 指定した場合、現在の内容のハッシュと一致するときだけ書き込む（「元に戻す」で使う）。
+    expected_hash: str | None = Field(default=None, min_length=64, max_length=64)
 
 
 @router.post("/apply", status_code=status.HTTP_204_NO_CONTENT)
@@ -40,7 +43,10 @@ async def post_file_operation(request_data: ApplyFileOperationRequest) -> Respon
             request_data.filename,
             request_data.content,
             FILE_BACKUP_PATH / project.id,
+            request_data.expected_hash,
         )
+    except FileConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except InvalidFilenameError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except TargetFileNotFoundError as exc:

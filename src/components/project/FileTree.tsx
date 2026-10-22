@@ -22,21 +22,25 @@ type FileTreeProps = {
   isChatPending?: boolean;
   projectId: string;
   refreshToken?: number;
+  selectedPath?: string | null;
+  onSelectFile?: (path: string) => void;
 };
 
-type TreeNodeProps = {
+type TreeSelection = {
+  selectedPath: string | null;
+  onSelectFile?: (path: string) => void;
+};
+
+type TreeNodeProps = TreeSelection & {
   depth: number;
   node: FileTreeNode;
 };
 
-function TreeNode({ depth, node }: TreeNodeProps) {
+function TreeNode({ depth, node, selectedPath, onSelectFile }: TreeNodeProps) {
   const [isOpen, setIsOpen] = useState(true);
   const isDirectory = node.type === "directory";
   const hasChildren = node.children.length > 0;
-
-  function handleFileClick(): void {
-    // ファイルプレビューはMVPの対象外。将来の機能追加用にクリック領域だけを用意する。
-  }
+  const isSelected = !isDirectory && node.path === selectedPath;
 
   return (
     <li>
@@ -57,10 +61,14 @@ function TreeNode({ depth, node }: TreeNodeProps) {
         </button>
       ) : (
         <button
-          className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-current={isSelected ? "true" : undefined}
+          className={cn(
+            "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm text-muted-foreground hover:bg-muted hover:text-foreground",
+            isSelected && "bg-muted font-medium text-foreground",
+          )}
           style={{ paddingLeft: `${depth * 16 + 8}px` }}
           type="button"
-          onClick={handleFileClick}
+          onClick={() => onSelectFile?.(node.path)}
         >
           <FileText className="size-4 shrink-0" aria-hidden="true" />
           <span className="truncate">{node.name}</span>
@@ -68,17 +76,33 @@ function TreeNode({ depth, node }: TreeNodeProps) {
       )}
 
       {isDirectory && isOpen && hasChildren ? (
-        <TreeNodes depth={depth + 1} nodes={node.children} />
+        <TreeNodes
+          depth={depth + 1}
+          nodes={node.children}
+          selectedPath={selectedPath}
+          onSelectFile={onSelectFile}
+        />
       ) : null}
     </li>
   );
 }
 
-function TreeNodes({ depth, nodes }: { depth: number; nodes: FileTreeNode[] }) {
+function TreeNodes({
+  depth,
+  nodes,
+  selectedPath,
+  onSelectFile,
+}: TreeSelection & { depth: number; nodes: FileTreeNode[] }) {
   return (
     <ul>
       {nodes.map((node) => (
-        <TreeNode key={node.path} depth={depth} node={node} />
+        <TreeNode
+          key={node.path}
+          depth={depth}
+          node={node}
+          selectedPath={selectedPath}
+          onSelectFile={onSelectFile}
+        />
       ))}
     </ul>
   );
@@ -110,6 +134,8 @@ export function FileTree({
   isChatPending = false,
   projectId,
   refreshToken = 0,
+  selectedPath = null,
+  onSelectFile,
 }: FileTreeProps) {
   const [tree, setTree] = useState<FileTreeNode | null>(null);
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
@@ -203,7 +229,12 @@ export function FileTree({
       <div className="min-h-0 flex-1 overflow-y-auto py-2">
         {tree ? (
           <ul>
-            <TreeNode depth={0} node={tree} />
+            <TreeNode
+              depth={0}
+              node={tree}
+              selectedPath={selectedPath}
+              onSelectFile={onSelectFile}
+            />
           </ul>
         ) : !error ? (
           <p className="px-4 py-2 text-sm text-muted-foreground">
