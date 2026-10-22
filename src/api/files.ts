@@ -7,6 +7,29 @@ const apiErrorSchema = z.object({
   detail: z.string(),
 });
 
+const fileContentSchema = z.object({
+  path: z.string(),
+  content: z.string(),
+  content_hash: z.string(),
+});
+
+const saveFileContentResponseSchema = z.object({
+  content_hash: z.string(),
+});
+
+export type FileContent = {
+  content: string;
+  contentHash: string;
+  path: string;
+};
+
+export type SaveFileContentRequest = {
+  content: string;
+  expectedHash: string;
+  path: string;
+  projectId: string;
+};
+
 export type ApplyFileOperationRequest = {
   action: "create" | "edit";
   content: string;
@@ -27,6 +50,40 @@ export async function applyFileOperation(
     },
     { timeout: 0 },
   );
+}
+
+export async function getFileContent(
+  projectId: string,
+  path: string,
+): Promise<FileContent> {
+  const response = await apiClient.get<unknown>(
+    `/projects/${projectId}/files/content`,
+    { params: { path } },
+  );
+  const result = fileContentSchema.parse(response.data);
+  return {
+    content: result.content,
+    contentHash: result.content_hash,
+    path: result.path,
+  };
+}
+
+export async function saveFileContent(
+  request: SaveFileContentRequest,
+): Promise<string> {
+  const response = await apiClient.put<unknown>(
+    `/projects/${request.projectId}/files/content`,
+    {
+      path: request.path,
+      content: request.content,
+      expected_hash: request.expectedHash,
+    },
+  );
+  return saveFileContentResponseSchema.parse(response.data).content_hash;
+}
+
+export function isFileConflictError(error: unknown): boolean {
+  return axios.isAxiosError(error) && error.response?.status === 409;
 }
 
 export function getFileOperationErrorMessage(error: unknown): string {

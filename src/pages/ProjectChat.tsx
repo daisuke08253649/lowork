@@ -16,6 +16,7 @@ import { MessageInput } from "@/components/chat/MessageInput";
 import { MessageList } from "@/components/chat/MessageList";
 import { ModelSelector } from "@/components/common/ModelSelector";
 import { DiffPreview } from "@/components/project/DiffPreview";
+import { FileEditorPanel } from "@/components/project/FileEditorPanel";
 import { FileTree } from "@/components/project/FileTree";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ export function ProjectChat() {
   const [modelError, setModelError] = useState<string | null>(null);
   const [isLoadingModels, setIsLoadingModels] = useState(true);
   const [treeRefreshToken, setTreeRefreshToken] = useState(0);
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
   const [previewFileOperation, setPreviewFileOperation] =
     useState<ProjectFileOperation | null>(null);
   const [isApplying, setIsApplying] = useState(false);
@@ -135,6 +137,10 @@ export function ProjectChat() {
     setIsApplying(false);
     setPreviewFileOperation(null);
   }, [projectId, requestedConversationId]);
+
+  useEffect(() => {
+    setSelectedFilePath(null);
+  }, [projectId]);
 
   async function handleSubmit(): Promise<void> {
     if (!projectId || !model) {
@@ -345,11 +351,24 @@ export function ProjectChat() {
           setFileOperationError(null);
         }}
       />
+      {projectId && selectedFilePath ? (
+        <FileEditorPanel
+          isChatPending={isSending}
+          projectId={projectId}
+          refreshToken={treeRefreshToken}
+          requestedPath={selectedFilePath}
+          onCancelSwitch={setSelectedFilePath}
+          onClose={() => setSelectedFilePath(null)}
+          onSaved={() => setTreeRefreshToken((token) => token + 1)}
+        />
+      ) : null}
       {projectId ? (
         <FileTree
           isChatPending={isSending}
           projectId={projectId}
           refreshToken={treeRefreshToken}
+          selectedPath={selectedFilePath}
+          onSelectFile={setSelectedFilePath}
         />
       ) : null}
     </div>
