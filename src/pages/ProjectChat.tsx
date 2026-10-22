@@ -25,6 +25,7 @@ import { loadProjects } from "@/hooks/useProject";
 import { useModelStore } from "@/store/modelStore";
 import { useOllamaStatusStore } from "@/store/ollamaStatusStore";
 import { useProjectStore } from "@/store/projectStore";
+import { useUnsavedChangesStore } from "@/store/unsavedChangesStore";
 
 export function ProjectChat() {
   const { projectId } = useParams();
@@ -52,6 +53,7 @@ export function ProjectChat() {
   const project = useProjectStore((state) =>
     state.projects.find((item) => item.id === projectId),
   );
+  const isEditorSaving = useUnsavedChangesStore((state) => state.isSaving);
   const executionMode = useProjectStore((state) => state.executionMode);
   const setExecutionMode = useProjectStore((state) => state.setExecutionMode);
   const model = useModelStore((state) => state.selectedModel);
@@ -143,7 +145,7 @@ export function ProjectChat() {
   }, [projectId]);
 
   async function handleSubmit(): Promise<void> {
-    if (!projectId || !model) {
+    if (!projectId || !model || isEditorSaving) {
       return;
     }
     const message = input;
@@ -247,7 +249,10 @@ export function ProjectChat() {
     setTreeRefreshToken((token) => token + 1);
   }
 
-  const isInputDisabled = isSending || isLoadingModels || model === null;
+  // 手動保存とAIのファイル操作が重なると、古い内容に基づく書き込みで手動の変更が失われる。
+  // 応答の生成中は保存を止めているので、保存中は送信を止めて両者を同時に起こさない。
+  const isInputDisabled =
+    isSending || isEditorSaving || isLoadingModels || model === null;
   const displayedError = modelError ?? error;
   const composer = (
     <div className="w-full space-y-3">

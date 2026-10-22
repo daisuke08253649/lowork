@@ -67,8 +67,15 @@ export function FileEditorPanel({
   const canSave = isDirty && !isSaving && !isLoading && !isChatPending;
 
   useEffect(() => {
+    if (requestedPath === currentPath) {
+      // 切り替えの確認中に今のファイルを選び直した場合は、切り替えのキャンセルとして扱う。
+      if (pendingDiscard === "switch") {
+        setPendingDiscard(null);
+      }
+      return;
+    }
     // 保存中は書き込みの結果が確定するまで切り替えない。
-    if (requestedPath === currentPath || isSaving) {
+    if (isSaving) {
       return;
     }
     if (isDirty) {
@@ -76,7 +83,7 @@ export function FileEditorPanel({
       return;
     }
     openFile(requestedPath);
-  }, [currentPath, isDirty, isSaving, requestedPath]);
+  }, [currentPath, isDirty, isSaving, pendingDiscard, requestedPath]);
 
   useEffect(() => {
     setHasUnsavedChanges(isDirty);
