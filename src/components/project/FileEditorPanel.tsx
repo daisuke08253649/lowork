@@ -12,6 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useUnsavedChangesStore } from "@/store/unsavedChangesStore";
 
 type FileEditorPanelProps = {
   isChatPending: boolean;
@@ -53,6 +54,9 @@ export function FileEditorPanel({
     "close" | "switch" | null
   >(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const setHasUnsavedChanges = useUnsavedChangesStore(
+    (state) => state.setHasUnsavedChanges,
+  );
   const lastRefreshTokenRef = useRef(refreshToken);
   // 切り替え直後は前のファイルの内容が残っているため、表示中のパスと一致するものだけを扱う。
   const activeFile = loadedFile?.path === currentPath ? loadedFile : null;
@@ -68,8 +72,16 @@ export function FileEditorPanel({
       setPendingDiscard("switch");
       return;
     }
-    setCurrentPath(requestedPath);
+    openFile(requestedPath);
   }, [currentPath, isDirty, isSaving, requestedPath]);
+
+  useEffect(() => {
+    setHasUnsavedChanges(isDirty);
+  }, [isDirty, setHasUnsavedChanges]);
+
+  useEffect(() => {
+    return () => setHasUnsavedChanges(false);
+  }, [setHasUnsavedChanges]);
 
   useEffect(() => {
     // AIの書き込みや「元に戻す」でファイルが変わった可能性があるため、
@@ -135,6 +147,8 @@ export function FileEditorPanel({
         expectedHash: activeFile.contentHash,
       });
       setLoadedFile({ content: savedContent, contentHash, path: savedPath });
+      // 破棄の確認中に保存した場合は確認が不要になる。保留中の切り替えは上のeffectで進む。
+      setPendingDiscard(null);
       onSaved(savedPath);
     } catch (error) {
       setHasConflict(isFileConflictError(error));
@@ -142,6 +156,11 @@ export function FileEditorPanel({
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function openFile(path: string): void {
+    setCurrentPath(path);
+    setTab("preview");
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLElement>): void {
@@ -169,7 +188,7 @@ export function FileEditorPanel({
       onClose();
       return;
     }
-    setCurrentPath(requestedPath);
+    openFile(requestedPath);
   }
 
   function cancelDiscard(): void {

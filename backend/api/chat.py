@@ -35,6 +35,8 @@ from backend.services.file_ops import (
     TargetFileAlreadyExistsError,
     TargetFileNotFoundError,
     apply_file_operation,
+    content_hash,
+    normalize_content,
 )
 from backend.services.indexer import index_project
 from backend.services.project import get_project
@@ -71,6 +73,7 @@ class ProjectChatResponse(BaseModel):
     file_op: FileOperationResponse | None
     file_op_error: str | None = None
     previous_content: str | None = None
+    applied_content_hash: str | None = None
     mode: Literal["confirm", "auto"]
     conversation_id: str
 
@@ -502,11 +505,17 @@ async def post_project_chat(
     )
     file_op_error = None
     previous_content = None
+    applied_content_hash = None
     if request_data.mode == "auto":
         file_op_error, previous_content = await apply_auto_file_operation(
             project.id,
             project.folder_path,
             output.file_op,
+        )
+    if previous_content is not None and output.file_op is not None:
+        # 「元に戻す」時に、AIの書き込み後にファイルが変わっていないかを照合するために返す。
+        applied_content_hash = content_hash(
+            normalize_content(output.file_op.content).encode("utf-8")
         )
 
     try:
@@ -531,6 +540,7 @@ async def post_project_chat(
         file_op=output.file_op,
         file_op_error=file_op_error,
         previous_content=previous_content,
+        applied_content_hash=applied_content_hash,
         mode=request_data.mode,
         conversation_id=conversation_id,
     )

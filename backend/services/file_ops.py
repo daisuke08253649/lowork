@@ -50,12 +50,13 @@ def apply_file_operation(
     filename: str,
     content: str,
     backup_folder: Path,
+    expected_hash: str | None = None,
 ) -> str | None:
     """ファイル操作を適用し、編集時は変更前の内容を返す。"""
     if action == "create":
         create_file(project_folder, filename, content)
         return None
-    return edit_file(project_folder, filename, content, backup_folder)
+    return edit_file(project_folder, filename, content, backup_folder, expected_hash)
 
 
 def create_file(project_folder: str, filename: str, content: str) -> None:

@@ -33,6 +33,8 @@ export type SaveFileContentRequest = {
 export type ApplyFileOperationRequest = {
   action: "create" | "edit";
   content: string;
+  // 指定した場合、現在の内容がこのハッシュと一致するときだけ書き込む。
+  expectedHash?: string;
   filename: string;
   projectId: string;
 };
@@ -47,6 +49,7 @@ export async function applyFileOperation(
       action: request.action,
       filename: request.filename,
       content: request.content,
+      expected_hash: request.expectedHash,
     },
     { timeout: 0 },
   );

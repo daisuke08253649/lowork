@@ -38,6 +38,7 @@ type SendProjectMessageParams = {
 };
 
 type ProjectChatNotice = {
+  appliedContentHash: string | null;
   fileOp: ProjectFileOperation | null;
   fileOpError: string | null;
   mode: "confirm" | "auto";
@@ -374,6 +375,7 @@ export function useProjectChat(
         fileOpError: response.fileOpError,
         mode: response.mode,
         previousContent: response.previousContent,
+        appliedContentHash: response.appliedContentHash,
       });
       useProjectHistoryStore.getState().refreshProjectHistory();
       return {

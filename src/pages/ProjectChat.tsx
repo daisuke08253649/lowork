@@ -198,11 +198,13 @@ export function ProjectChat() {
   async function handleUndoAutoFileOperation(): Promise<void> {
     const fileOp = notice?.fileOp;
     const previousContent = notice?.previousContent;
+    const appliedContentHash = notice?.appliedContentHash;
     if (
       !projectId ||
       !fileOp ||
       previousContent === null ||
       previousContent === undefined ||
+      !appliedContentHash ||
       isApplyingRef.current
     ) {
       return;
@@ -217,6 +219,8 @@ export function ProjectChat() {
         action: "edit",
         filename: fileOp.filename,
         content: previousContent,
+        // AIの書き込み後に手動保存などでファイルが変わっていたら、上書きせず409にする。
+        expectedHash: appliedContentHash,
       });
       setRestoredFilename(fileOp.filename);
       clearNotice();
@@ -400,6 +404,7 @@ function ChatError({ message }: { message: string }) {
 }
 
 function ProjectChatNotice({
+  appliedContentHash,
   fileOp,
   fileOpError,
   isUndoing,
@@ -409,6 +414,7 @@ function ProjectChatNotice({
   previousContent,
   undoError,
 }: {
+  appliedContentHash: string | null;
   fileOp: { action: "create" | "edit"; filename: string } | null;
   fileOpError: string | null;
   isUndoing: boolean;
@@ -442,7 +448,8 @@ function ProjectChatNotice({
     mode === "auto"
       ? "自走モードでファイル操作を適用しました。"
       : "内容を確認して適用してください。";
-  const canUndo = mode === "auto" && previousContent !== null;
+  const canUndo =
+    mode === "auto" && previousContent !== null && appliedContentHash !== null;
   return (
     <Alert className="mb-3">
       <FilePenLine aria-hidden="true" />

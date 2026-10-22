@@ -7,6 +7,15 @@ import {
 } from "lucide-react";
 import { matchPath, useLocation, useNavigate } from "react-router";
 
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { OllamaWarningBanner } from "@/components/common/OllamaWarningBanner";
 import {
@@ -19,6 +28,7 @@ import { deleteChatConversation, getChatConversations } from "@/api/chat";
 import { useChatStore } from "@/store/chatStore";
 import { useOllamaStatusStore } from "@/store/ollamaStatusStore";
 import { useProjectHistoryStore } from "@/store/projectHistoryStore";
+import { useUnsavedChangesStore } from "@/store/unsavedChangesStore";
 
 const TITLE_REFRESH_INTERVAL_MS = 5_000;
 const TITLE_REFRESH_MAX_ATTEMPTS = 24;
@@ -46,6 +56,15 @@ export function Sidebar() {
   const [projectHistoryError, setProjectHistoryError] = useState<string | null>(
     null,
   );
+  const hasUnsavedChanges = useUnsavedChangesStore(
+    (state) => state.hasUnsavedChanges,
+  );
+  const setHasUnsavedChanges = useUnsavedChangesStore(
+    (state) => state.setHasUnsavedChanges,
+  );
+  const [pendingNavigationPath, setPendingNavigationPath] = useState<
+    string | null
+  >(null);
   const titleRefreshAttemptsRef = useRef(0);
   const titleRefreshProjectIdRef = useRef<string | undefined>(undefined);
   const projectHistoryRefreshToken = useProjectHistoryStore(
@@ -132,10 +151,29 @@ export function Sidebar() {
   }, [projectId, projectHistoryRefreshToken, ollamaRecoveryToken]);
 
   function handleNavigate(path: string): void {
+    // プロジェクトチャット画面を離れるとエディタの未保存の変更が失われるため確認する。
+    if (hasUnsavedChanges) {
+      setPendingNavigationPath(path);
+      return;
+    }
+    navigateTo(path);
+  }
+
+  function navigateTo(path: string): void {
     if (path === "/") {
       startNewChat();
     }
     navigate(path);
+  }
+
+  function confirmNavigation(): void {
+    const path = pendingNavigationPath;
+    setPendingNavigationPath(null);
+    if (path === null) {
+      return;
+    }
+    setHasUnsavedChanges(false);
+    navigateTo(path);
   }
 
   async function handleConversationSelect(
@@ -260,6 +298,32 @@ export function Sidebar() {
           ))}
         </div>
       </section>
+
+      <AlertDialog
+        open={pendingNavigationPath !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingNavigationPath(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>保存していない変更があります</AlertDialogTitle>
+            <AlertDialogDescription>
+              画面を移動すると、エディタで編集中の内容は失われます。破棄して移動しますか？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel render={<Button variant="outline" />}>
+              キャンセル
+            </AlertDialogCancel>
+            <Button variant="destructive" onClick={confirmNavigation}>
+              破棄して移動
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </aside>
   );
 }
