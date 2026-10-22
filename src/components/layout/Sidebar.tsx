@@ -62,6 +62,7 @@ export function Sidebar() {
   const setHasUnsavedChanges = useUnsavedChangesStore(
     (state) => state.setHasUnsavedChanges,
   );
+  const isEditorSaving = useUnsavedChangesStore((state) => state.isSaving);
   const [pendingNavigationPath, setPendingNavigationPath] = useState<
     string | null
   >(null);
@@ -168,10 +169,10 @@ export function Sidebar() {
 
   function confirmNavigation(): void {
     const path = pendingNavigationPath;
-    setPendingNavigationPath(null);
-    if (path === null) {
+    if (path === null || isEditorSaving) {
       return;
     }
+    setPendingNavigationPath(null);
     setHasUnsavedChanges(false);
     navigateTo(path);
   }
@@ -311,14 +312,20 @@ export function Sidebar() {
           <AlertDialogHeader>
             <AlertDialogTitle>保存していない変更があります</AlertDialogTitle>
             <AlertDialogDescription>
-              画面を移動すると、エディタで編集中の内容は失われます。破棄して移動しますか？
+              {isEditorSaving
+                ? "保存中です。保存が完了するまでお待ちください。"
+                : "画面を移動すると、エディタで編集中の内容は失われます。破棄して移動しますか？"}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel render={<Button variant="outline" />}>
               キャンセル
             </AlertDialogCancel>
-            <Button variant="destructive" onClick={confirmNavigation}>
+            <Button
+              disabled={isEditorSaving}
+              variant="destructive"
+              onClick={confirmNavigation}
+            >
               破棄して移動
             </Button>
           </AlertDialogFooter>

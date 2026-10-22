@@ -57,6 +57,9 @@ export function FileEditorPanel({
   const setHasUnsavedChanges = useUnsavedChangesStore(
     (state) => state.setHasUnsavedChanges,
   );
+  const setIsSavingInStore = useUnsavedChangesStore(
+    (state) => state.setIsSaving,
+  );
   const lastRefreshTokenRef = useRef(refreshToken);
   // 切り替え直後は前のファイルの内容が残っているため、表示中のパスと一致するものだけを扱う。
   const activeFile = loadedFile?.path === currentPath ? loadedFile : null;
@@ -80,8 +83,15 @@ export function FileEditorPanel({
   }, [isDirty, setHasUnsavedChanges]);
 
   useEffect(() => {
-    return () => setHasUnsavedChanges(false);
-  }, [setHasUnsavedChanges]);
+    setIsSavingInStore(isSaving);
+  }, [isSaving, setIsSavingInStore]);
+
+  useEffect(() => {
+    return () => {
+      setHasUnsavedChanges(false);
+      setIsSavingInStore(false);
+    };
+  }, [setHasUnsavedChanges, setIsSavingInStore]);
 
   useEffect(() => {
     // AIの書き込みや「元に戻す」でファイルが変わった可能性があるため、
