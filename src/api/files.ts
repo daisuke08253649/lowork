@@ -78,6 +78,8 @@ export async function saveFileContent(
       content: request.content,
       expected_hash: request.expectedHash,
     },
+    // 書き込みはサーバー側で中断できないため、途中で失敗扱いにせず完了を待つ。
+    { timeout: 0 },
   );
   return saveFileContentResponseSchema.parse(response.data).content_hash;
 }

@@ -229,6 +229,20 @@ export function ProjectChat() {
     }
   }
 
+  function handleManualSave(path: string): void {
+    // 手動保存より前に作られたAIの提案や「元に戻す」は古い内容を前提にしているため、
+    // 適用すると手動の変更を上書きしてしまう。同じファイルを対象とするものは取り消す。
+    if (notice?.fileOp?.filename === path) {
+      clearNotice();
+      setUndoError(null);
+    }
+    if (previewFileOperation?.filename === path && !isApplyingRef.current) {
+      setPreviewFileOperation(null);
+      setFileOperationError(null);
+    }
+    setTreeRefreshToken((token) => token + 1);
+  }
+
   const isInputDisabled = isSending || isLoadingModels || model === null;
   const displayedError = modelError ?? error;
   const composer = (
@@ -359,7 +373,7 @@ export function ProjectChat() {
           requestedPath={selectedFilePath}
           onCancelSwitch={setSelectedFilePath}
           onClose={() => setSelectedFilePath(null)}
-          onSaved={() => setTreeRefreshToken((token) => token + 1)}
+          onSaved={handleManualSave}
         />
       ) : null}
       {projectId ? (

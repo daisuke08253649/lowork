@@ -20,12 +20,13 @@ type FileEditorPanelProps = {
   requestedPath: string;
   onCancelSwitch: (currentPath: string) => void;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (path: string) => void;
 };
 
 type LoadedFile = {
   content: string;
   contentHash: string;
+  path: string;
 };
 
 type EditorTab = "preview" | "edit";
@@ -53,11 +54,14 @@ export function FileEditorPanel({
   >(null);
   const [reloadToken, setReloadToken] = useState(0);
   const lastRefreshTokenRef = useRef(refreshToken);
-  const isDirty = loadedFile !== null && draft !== loadedFile.content;
-  const canSave = isDirty && !isSaving && !isChatPending;
+  // 切り替え直後は前のファイルの内容が残っているため、表示中のパスと一致するものだけを扱う。
+  const activeFile = loadedFile?.path === currentPath ? loadedFile : null;
+  const isDirty = activeFile !== null && draft !== activeFile.content;
+  const canSave = isDirty && !isSaving && !isLoading && !isChatPending;
 
   useEffect(() => {
-    if (requestedPath === currentPath) {
+    // 保存中は書き込みの結果が確定するまで切り替えない。
+    if (requestedPath === currentPath || isSaving) {
       return;
     }
     if (isDirty) {
@@ -65,7 +69,7 @@ export function FileEditorPanel({
       return;
     }
     setCurrentPath(requestedPath);
-  }, [currentPath, isDirty, requestedPath]);
+  }, [currentPath, isDirty, isSaving, requestedPath]);
 
   useEffect(() => {
     // AIの書き込みや「元に戻す」でファイルが変わった可能性があるため、
@@ -87,7 +91,11 @@ export function FileEditorPanel({
         if (!isActive) {
           return;
         }
-        setLoadedFile({ content: file.content, contentHash: file.contentHash });
+        setLoadedFile({
+          content: file.content,
+          contentHash: file.contentHash,
+          path: currentPath,
+        });
         setDraft(file.content);
         setLoadError(null);
         setSaveError(null);
@@ -111,22 +119,23 @@ export function FileEditorPanel({
   }, [currentPath, projectId, reloadToken]);
 
   async function handleSave(): Promise<void> {
-    if (!loadedFile || !canSave) {
+    if (!activeFile || !canSave) {
       return;
     }
 
     const savedContent = draft;
+    const savedPath = activeFile.path;
     setIsSaving(true);
     setSaveError(null);
     try {
       const contentHash = await saveFileContent({
         projectId,
-        path: currentPath,
+        path: savedPath,
         content: savedContent,
-        expectedHash: loadedFile.contentHash,
+        expectedHash: activeFile.contentHash,
       });
-      setLoadedFile({ content: savedContent, contentHash });
-      onSaved();
+      setLoadedFile({ content: savedContent, contentHash, path: savedPath });
+      onSaved(savedPath);
     } catch (error) {
       setHasConflict(isFileConflictError(error));
       setSaveError(getFileOperationErrorMessage(error));
@@ -143,6 +152,9 @@ export function FileEditorPanel({
   }
 
   function requestClose(): void {
+    if (isSaving) {
+      return;
+    }
     if (isDirty) {
       setPendingDiscard("close");
       return;
@@ -197,6 +209,7 @@ export function FileEditorPanel({
         </Button>
         <Button
           aria-label="閉じる"
+          disabled={isSaving}
           size="icon-sm"
           variant="ghost"
           onClick={requestClose}
@@ -211,10 +224,20 @@ export function FileEditorPanel({
           <AlertTitle>保存していない変更があります</AlertTitle>
           <AlertDescription className="flex flex-wrap items-center gap-2">
             <span>変更を破棄してよいですか？</span>
-            <Button size="sm" variant="destructive" onClick={confirmDiscard}>
+            <Button
+              disabled={isSaving}
+              size="sm"
+              variant="destructive"
+              onClick={confirmDiscard}
+            >
               破棄する
             </Button>
-            <Button size="sm" variant="outline" onClick={cancelDiscard}>
+            <Button
+              disabled={isSaving}
+              size="sm"
+              variant="outline"
+              onClick={cancelDiscard}
+            >
               キャンセル
             </Button>
           </AlertDescription>
@@ -245,11 +268,11 @@ export function FileEditorPanel({
         <p className="px-4 py-3 text-sm text-destructive">{loadError}</p>
       ) : null}
 
-      {isLoading && !loadedFile ? (
+      {isLoading && !activeFile ? (
         <p className="px-4 py-3 text-sm text-muted-foreground">読み込み中...</p>
       ) : null}
 
-      {loadedFile ? (
+      {activeFile ? (
         <Tabs
           className="min-h-0 flex-1 px-4 py-3"
           value={tab}
@@ -270,6 +293,7 @@ export function FileEditorPanel({
             <Textarea
               aria-label={`${currentPath} の内容`}
               className="min-h-0 flex-1 resize-none font-mono field-sizing-fixed"
+              readOnly={isLoading}
               spellCheck={false}
               value={draft}
               onChange={(event) => setDraft(event.currentTarget.value)}

@@ -2,6 +2,7 @@ import hashlib
 import os
 import stat
 import tempfile
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
@@ -11,6 +12,8 @@ from backend.services.indexer import EXCLUDED_DIRECTORY_NAMES, is_supported_proj
 MAX_FILENAME_COMPONENT_BYTES = 255
 MAX_RELATIVE_PATH_BYTES = 1_024
 MAX_EDITABLE_FILE_BYTES = 1_000_000
+file_locks: dict[Path, threading.Lock] = {}
+file_locks_guard = threading.Lock()
 
 
 class FileOperationError(Exception):
@@ -88,12 +91,24 @@ def edit_file(
     """
     project_path = get_project_path(project_folder)
     target_path = get_existing_target_path(project_path, filename)
-    previous_content = target_path.read_bytes()
-    if expected_hash is not None and content_hash(previous_content) != expected_hash:
-        raise FileConflictError("ファイルが別の操作で変更されています")
-    save_backup(backup_folder, filename, previous_content)
-    write_file_atomically(target_path, normalize_content(content))
+    # 同じファイルへの並行した書き込み（手動保存とAIの編集など）で、
+    # 両方がハッシュ検査を通過して一方の変更が失われないよう、読み込みから置換までを排他にする。
+    with get_file_lock(target_path):
+        previous_content = target_path.read_bytes()
+        if (
+            expected_hash is not None
+            and content_hash(previous_content) != expected_hash
+        ):
+            raise FileConflictError("ファイルが別の操作で変更されています")
+        save_backup(backup_folder, filename, previous_content)
+        write_file_atomically(target_path, normalize_content(content))
     return previous_content.decode("utf-8", errors="replace")
+
+
+def get_file_lock(target_path: Path) -> threading.Lock:
+    lock_key = target_path.resolve()
+    with file_locks_guard:
+        return file_locks.setdefault(lock_key, threading.Lock())
 
 
 def read_file(project_folder: str, filename: str) -> tuple[str, str]:
