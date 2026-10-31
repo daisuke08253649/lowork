@@ -27,10 +27,15 @@ export function ModelSelector({
 
   return (
     <Select disabled={disabled} onValueChange={handleValueChange} value={value}>
-      <SelectTrigger className="w-full sm:w-64">
+      <SelectTrigger
+        aria-label="モデル"
+        className="max-w-56 border-transparent bg-transparent hover:bg-muted dark:bg-transparent"
+        size="sm"
+      >
         <SelectValue placeholder="モデルを選択" />
       </SelectTrigger>
-      <SelectContent>
+      {/* 入力欄は会話中に画面下端へ来るため、一覧はボタンに重ねず上に開く */}
+      <SelectContent align="start" alignItemWithTrigger={false} side="top">
         {models.map((model) => (
           <SelectItem key={model} value={model}>
             {model}

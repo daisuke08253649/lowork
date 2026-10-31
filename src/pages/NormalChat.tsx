@@ -75,17 +75,19 @@ export function NormalChat() {
   const isInputDisabled = isStreaming || isLoadingModels || model === null;
   const displayedError = modelError ?? error;
   const composer = (
-    <div className="w-full space-y-3">
-      <ModelSelector
-        disabled={isStreaming || isLoadingModels || models.length === 0}
-        models={models}
-        onValueChange={setModel}
-        value={model}
-      />
+    <div className="w-full">
       <MessageInput
         disabled={isInputDisabled}
         onChange={setInput}
         onSubmit={handleSubmit}
+        toolbar={
+          <ModelSelector
+            disabled={isStreaming || isLoadingModels || models.length === 0}
+            models={models}
+            onValueChange={setModel}
+            value={model}
+          />
+        }
         value={input}
       />
     </div>
