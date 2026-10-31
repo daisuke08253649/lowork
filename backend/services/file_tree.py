@@ -5,7 +5,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from backend.services.indexer import EXCLUDED_DIRECTORY_NAMES, is_supported_project_file
+from backend.services.indexer import (
+    is_excluded_directory_name,
+    is_supported_project_file,
+)
 
 
 @dataclass
@@ -26,7 +29,7 @@ def build_file_tree(project_folder: Path) -> FileTreeNode:
     nodes_by_path = {"": root}
     for directory_path, directory_names, file_names in os.walk(project_folder):
         directory_names[:] = sorted(
-            name for name in directory_names if name not in EXCLUDED_DIRECTORY_NAMES
+            name for name in directory_names if not is_excluded_directory_name(name)
         )
         directory = Path(directory_path)
         add_directory_nodes(project_folder, directory, nodes_by_path)

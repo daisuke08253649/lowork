@@ -11,11 +11,14 @@ OLLAMA_TIMEOUT_SECONDS = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "5"))
 SQLITE_URL_PREFIX = "sqlite+aiosqlite:///"
 LOCAL_OLLAMA_HOSTS = {"127.0.0.1", "::1", "localhost"}
 ALLOWED_API_HOSTS = ["127.0.0.1", "localhost"]
-ALLOWED_ORIGINS = [
-    "http://localhost:1420",
-    "tauri://localhost",
-    "http://tauri.localhost",
-]
+PRODUCTION_ORIGINS = ["tauri://localhost", "http://tauri.localhost"]
+DEV_ORIGIN = "http://localhost:1420"
+# 開発用のViteサーバーのオリジンは、開発時（Tauriのデバッグビルド、または手動起動で
+# LOWORK_ALLOW_DEV_ORIGIN=1を付けたとき）だけ許可する。本番で同じポートの別ページから
+# APIを使われないようにするため、.envには書かない。
+ALLOWED_ORIGINS = PRODUCTION_ORIGINS + (
+    [DEV_ORIGIN] if os.environ.get("LOWORK_ALLOW_DEV_ORIGIN") == "1" else []
+)
 OLLAMA_EMBEDDING_MODEL = os.environ.get("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text")
 
 

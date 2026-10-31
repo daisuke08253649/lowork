@@ -48,10 +48,14 @@ async def create_project(name: str, folder_path: str) -> Project:
 
 def is_too_broad_folder(folder_path: Path) -> bool:
     # ファイル書き込み権限の及ぶ範囲を限定するため、ホームとその上位階層は対象外にする。
-    home_path = Path.home().resolve()
-    return folder_path == Path(folder_path.anchor) or home_path.is_relative_to(
-        folder_path
-    )
+    # macOSは大文字小文字を区別しないので、表記ゆれ（/USERS/...など）も同じフォルダとして扱う。
+    folder_parts = casefold_parts(folder_path)
+    home_parts = casefold_parts(Path.home().resolve())
+    return len(folder_parts) <= 1 or home_parts[: len(folder_parts)] == folder_parts
+
+
+def casefold_parts(path: Path) -> tuple[str, ...]:
+    return tuple(part.casefold() for part in path.parts)
 
 
 async def get_project(project_id: str) -> Project | None:
