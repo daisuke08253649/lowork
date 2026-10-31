@@ -25,15 +25,18 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(BackendProcess(Mutex::new(None)))
         .setup(move |app| {
-            let (_rx, child) = app
+            let mut command = app
                 .shell()
                 .command(uvicorn_path.to_str().expect("invalid path"))
                 .args(["backend.main:app", "--port", "8000"])
                 // 強制終了などで下の終了処理が走らなくても、バックエンドが親の終了を検知して止まれるようにする
                 .env("LOWORK_PARENT_PID", std::process::id().to_string())
-                .current_dir(project_root.clone())
-                .spawn()
-                .expect("failed to start FastAPI backend");
+                .current_dir(project_root.clone());
+            if cfg!(debug_assertions) {
+                // 開発時だけ、Viteの開発サーバー（http://localhost:1420）からのAPI呼び出しを許可する
+                command = command.env("LOWORK_ALLOW_DEV_ORIGIN", "1");
+            }
+            let (_rx, child) = command.spawn().expect("failed to start FastAPI backend");
 
             *app.state::<BackendProcess>().0.lock().unwrap() = Some(child);
             Ok(())

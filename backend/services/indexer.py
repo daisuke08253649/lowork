@@ -31,6 +31,11 @@ class ProjectFileScan:
     has_errors: bool
 
 
+def is_excluded_directory_name(name: str) -> bool:
+    # macOSのファイルシステムは大文字小文字を区別しないため、表記ゆれ（.GITなど）も除外する。
+    return name.casefold() in EXCLUDED_DIRECTORY_NAMES
+
+
 def is_supported_project_file(file_path: Path) -> bool:
     return (
         file_path.suffix.lower() in SUPPORTED_FILE_SUFFIXES
@@ -56,7 +61,7 @@ def find_project_files(project_folder: Path) -> ProjectFileScan:
         onerror=handle_walk_error,
     ):
         directory_names[:] = [
-            name for name in directory_names if name not in EXCLUDED_DIRECTORY_NAMES
+            name for name in directory_names if not is_excluded_directory_name(name)
         ]
         for filename in file_names:
             file_path = Path(directory_path, filename)

@@ -7,7 +7,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
-from backend.services.indexer import EXCLUDED_DIRECTORY_NAMES, is_supported_project_file
+from backend.services.indexer import (
+    is_excluded_directory_name,
+    is_supported_project_file,
+)
 
 MAX_FILENAME_COMPONENT_BYTES = 255
 MAX_RELATIVE_PATH_BYTES = 1_024
@@ -169,7 +172,7 @@ def get_project_path(project_folder: str) -> Path:
 def get_existing_target_path(project_path: Path, filename: str) -> Path:
     validate_relative_filename(filename)
     relative_path = Path(filename)
-    if any(part in EXCLUDED_DIRECTORY_NAMES for part in relative_path.parts):
+    if any(is_excluded_directory_name(part) for part in relative_path.parts):
         raise InvalidFilenameError("編集対象にできないディレクトリが指定されています")
 
     target_path = project_path / relative_path
