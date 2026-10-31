@@ -14,6 +14,7 @@ from backend.api.projects import router as projects_router
 from backend.config import ALLOWED_API_HOSTS, ALLOWED_ORIGINS
 from backend.db.database import close_database, initialize_database
 from backend.services.indexer import start_project_indexing
+from backend.services.parent_watch import start_parent_watch
 from backend.services.project import list_projects
 
 
@@ -23,7 +24,10 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     projects = await list_projects()
     for project in projects:
         start_project_indexing(project.id, project.folder_path)
+    parent_watch_task = start_parent_watch()
     yield
+    if parent_watch_task is not None:
+        parent_watch_task.cancel()
     await close_database()
 
 

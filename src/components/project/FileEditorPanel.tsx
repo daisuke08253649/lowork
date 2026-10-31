@@ -218,7 +218,7 @@ export function FileEditorPanel({
   return (
     <section
       aria-label="ファイルの確認・編集"
-      className="flex min-w-72 flex-1 flex-col border-l"
+      className="flex h-full min-w-0 flex-col border-l"
       onKeyDown={handleKeyDown}
     >
       <header className="flex items-center gap-2 border-b px-4 py-2">

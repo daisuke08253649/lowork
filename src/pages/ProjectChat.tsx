@@ -7,6 +7,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useDefaultLayout } from "react-resizable-panels";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 
 import type { ProjectFileOperation } from "@/api/chat";
@@ -20,12 +21,21 @@ import { FileEditorPanel } from "@/components/project/FileEditorPanel";
 import { FileTree } from "@/components/project/FileTree";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
 import { useProjectChat } from "@/hooks/useChat";
 import { loadProjects } from "@/hooks/useProject";
 import { useModelStore } from "@/store/modelStore";
 import { useOllamaStatusStore } from "@/store/ollamaStatusStore";
 import { useProjectStore } from "@/store/projectStore";
 import { useUnsavedChangesStore } from "@/store/unsavedChangesStore";
+
+const EDITOR_LAYOUT_ID = "project-chat-editor";
+// チャット欄・エディタとも、操作ボタンが潰れない最小幅（px）
+const PANEL_MIN_SIZE = 288;
 
 export function ProjectChat() {
   const { projectId } = useParams();
@@ -48,6 +58,12 @@ export function ProjectChat() {
     useState<ProjectFileOperation | null>(null);
   const [restoredFilename, setRestoredFilename] = useState<string | null>(null);
   const [undoError, setUndoError] = useState<string | null>(null);
+  const isEditorOpen = Boolean(projectId && selectedFilePath);
+  // エディタを開いているときの幅の配分を保存し、次に開いたときも再現する
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: EDITOR_LAYOUT_ID,
+    panelIds: isEditorOpen ? ["chat", "editor"] : ["chat"],
+  });
   const isApplyingRef = useRef(false);
   const submittedConversationIdRef = useRef<string | null>(null);
   const project = useProjectStore((state) =>
@@ -301,72 +317,102 @@ export function ProjectChat() {
     </div>
   );
 
-  return (
-    <div className="flex h-full overflow-hidden">
-      <section className="flex min-w-0 flex-1 flex-col">
-        {messages.length === 0 ? (
-          <div className="flex min-h-full flex-col items-center justify-center px-6 text-center">
-            <div className="w-full max-w-xl">
-              <Bot
-                className="mx-auto size-10 text-muted-foreground"
-                aria-hidden="true"
-              />
-              <h1 className="mt-4 text-2xl font-semibold tracking-tight">
-                {project?.name ?? "プロジェクト"}
-              </h1>
-              <p className="mt-2 text-sm text-muted-foreground">
-                プロジェクト内のメモを参照して、作成や編集を支援します。
-              </p>
-              <div className="mt-8 text-left">{composer}</div>
+  const chatSection = (
+    <section className="flex h-full min-w-0 flex-col">
+      {messages.length === 0 ? (
+        <div className="flex min-h-full flex-col items-center justify-center px-6 text-center">
+          <div className="w-full max-w-xl">
+            <Bot
+              className="mx-auto size-10 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <h1 className="mt-4 text-2xl font-semibold tracking-tight">
+              {project?.name ?? "プロジェクト"}
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              プロジェクト内のメモを参照して、作成や編集を支援します。
+            </p>
+            <div className="mt-8 text-left">{composer}</div>
+            {displayedError ? <ChatError message={displayedError} /> : null}
+          </div>
+        </div>
+      ) : (
+        <>
+          <MessageList isStreaming={isSending} messages={messages} />
+          <div className="border-t bg-background px-6 py-4">
+            <div className="mx-auto max-w-3xl">
               {displayedError ? <ChatError message={displayedError} /> : null}
+              {appliedFileOperation ? (
+                <AppliedFileOperationNotice
+                  fileOperation={appliedFileOperation}
+                />
+              ) : null}
+              {restoredFilename ? (
+                <Alert className="mb-3">
+                  <Undo2 aria-hidden="true" />
+                  <AlertTitle>{`${restoredFilename} を元に戻しました`}</AlertTitle>
+                </Alert>
+              ) : null}
+              {notice ? (
+                <ProjectChatNotice
+                  {...notice}
+                  isUndoing={isApplying}
+                  undoError={undoError}
+                  onUndo={() => void handleUndoAutoFileOperation()}
+                  onPreview={() => {
+                    if (notice.fileOp) {
+                      setFileOperationError(null);
+                      setPreviewFileOperation(notice.fileOp);
+                    }
+                  }}
+                />
+              ) : null}
+              {isSending ? (
+                <p className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
+                  <LoaderCircle
+                    className="size-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                  プロジェクトを検索して応答を生成中...
+                </p>
+              ) : null}
+              {composer}
             </div>
           </div>
-        ) : (
+        </>
+      )}
+    </section>
+  );
+
+  return (
+    <div className="flex h-full overflow-hidden">
+      <ResizablePanelGroup
+        className="min-w-0 flex-1"
+        defaultLayout={defaultLayout}
+        id={EDITOR_LAYOUT_ID}
+        orientation="horizontal"
+        onLayoutChanged={onLayoutChanged}
+      >
+        <ResizablePanel id="chat" minSize={PANEL_MIN_SIZE}>
+          {chatSection}
+        </ResizablePanel>
+        {projectId && selectedFilePath ? (
           <>
-            <MessageList isStreaming={isSending} messages={messages} />
-            <div className="border-t bg-background px-6 py-4">
-              <div className="mx-auto max-w-3xl">
-                {displayedError ? <ChatError message={displayedError} /> : null}
-                {appliedFileOperation ? (
-                  <AppliedFileOperationNotice
-                    fileOperation={appliedFileOperation}
-                  />
-                ) : null}
-                {restoredFilename ? (
-                  <Alert className="mb-3">
-                    <Undo2 aria-hidden="true" />
-                    <AlertTitle>{`${restoredFilename} を元に戻しました`}</AlertTitle>
-                  </Alert>
-                ) : null}
-                {notice ? (
-                  <ProjectChatNotice
-                    {...notice}
-                    isUndoing={isApplying}
-                    undoError={undoError}
-                    onUndo={() => void handleUndoAutoFileOperation()}
-                    onPreview={() => {
-                      if (notice.fileOp) {
-                        setFileOperationError(null);
-                        setPreviewFileOperation(notice.fileOp);
-                      }
-                    }}
-                  />
-                ) : null}
-                {isSending ? (
-                  <p className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
-                    <LoaderCircle
-                      className="size-4 animate-spin"
-                      aria-hidden="true"
-                    />
-                    プロジェクトを検索して応答を生成中...
-                  </p>
-                ) : null}
-                {composer}
-              </div>
-            </div>
+            <ResizableHandle withHandle />
+            <ResizablePanel id="editor" minSize={PANEL_MIN_SIZE}>
+              <FileEditorPanel
+                isChatPending={isSending}
+                projectId={projectId}
+                refreshToken={treeRefreshToken}
+                requestedPath={selectedFilePath}
+                onCancelSwitch={setSelectedFilePath}
+                onClose={() => setSelectedFilePath(null)}
+                onSaved={handleManualSave}
+              />
+            </ResizablePanel>
           </>
-        )}
-      </section>
+        ) : null}
+      </ResizablePanelGroup>
       <DiffPreview
         error={fileOperationError}
         fileOperation={previewFileOperation}
@@ -377,17 +423,6 @@ export function ProjectChat() {
           setFileOperationError(null);
         }}
       />
-      {projectId && selectedFilePath ? (
-        <FileEditorPanel
-          isChatPending={isSending}
-          projectId={projectId}
-          refreshToken={treeRefreshToken}
-          requestedPath={selectedFilePath}
-          onCancelSwitch={setSelectedFilePath}
-          onClose={() => setSelectedFilePath(null)}
-          onSaved={handleManualSave}
-        />
-      ) : null}
       {projectId ? (
         <FileTree
           isChatPending={isSending}
