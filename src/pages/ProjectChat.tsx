@@ -269,30 +269,33 @@ export function ProjectChat() {
           </Button>
         </div>
       ) : null}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <ModelSelector
-          disabled={isSending || isLoadingModels || models.length === 0}
-          models={models}
-          onValueChange={setModel}
-          value={model}
-        />
-        <Button
-          aria-pressed={executionMode === "auto"}
-          disabled={isSending}
-          type="button"
-          variant={executionMode === "auto" ? "default" : "outline"}
-          onClick={() =>
-            setExecutionMode(executionMode === "auto" ? "confirm" : "auto")
-          }
-        >
-          <FilePenLine aria-hidden="true" />
-          {executionMode === "auto" ? "自走モード" : "確認モード"}
-        </Button>
-      </div>
       <MessageInput
         disabled={isInputDisabled}
         onChange={setInput}
         onSubmit={handleSubmit}
+        toolbar={
+          <>
+            <ModelSelector
+              disabled={isSending || isLoadingModels || models.length === 0}
+              models={models}
+              onValueChange={setModel}
+              value={model}
+            />
+            <Button
+              aria-pressed={executionMode === "auto"}
+              disabled={isSending}
+              size="sm"
+              type="button"
+              variant={executionMode === "auto" ? "default" : "ghost"}
+              onClick={() =>
+                setExecutionMode(executionMode === "auto" ? "confirm" : "auto")
+              }
+            >
+              <FilePenLine aria-hidden="true" />
+              {executionMode === "auto" ? "自走モード" : "確認モード"}
+            </Button>
+          </>
+        }
         value={input}
       />
     </div>

@@ -27,7 +27,11 @@ export function ModelSelector({
 
   return (
     <Select disabled={disabled} onValueChange={handleValueChange} value={value}>
-      <SelectTrigger className="w-full sm:w-64">
+      <SelectTrigger
+        aria-label="モデル"
+        className="max-w-56 border-transparent bg-transparent hover:bg-muted dark:bg-transparent"
+        size="sm"
+      >
         <SelectValue placeholder="モデルを選択" />
       </SelectTrigger>
       <SelectContent>
