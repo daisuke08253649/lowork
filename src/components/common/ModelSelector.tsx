@@ -34,7 +34,8 @@ export function ModelSelector({
       >
         <SelectValue placeholder="モデルを選択" />
       </SelectTrigger>
-      <SelectContent>
+      {/* 入力欄は会話中に画面下端へ来るため、一覧はボタンに重ねず上に開く */}
+      <SelectContent align="start" alignItemWithTrigger={false} side="top">
         {models.map((model) => (
           <SelectItem key={model} value={model}>
             {model}
