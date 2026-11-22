@@ -84,6 +84,23 @@ function formatPullStatus(status: string): string {
   return status;
 }
 
+// 必要メモリを判定できないバリアントは表示しない。必須のEmbeddingモデルは例外とする。
+function excludeUndeterminedModels(
+  models: AvailableModel[],
+  embeddingModel: string,
+): AvailableModel[] {
+  return models
+    .map((model) => ({
+      ...model,
+      variants: model.variants.filter(
+        (variant) =>
+          variant.compatibility.status !== "unknown" ||
+          isRequiredEmbeddingModel(variant.pull_model, embeddingModel),
+      ),
+    }))
+    .filter((model) => model.variants.length > 0);
+}
+
 function visibleVariants(model: AvailableModel): AvailableModelVariant[] {
   const labeledVariants = model.variants.filter((variant) => variant.label);
   return labeledVariants.length === 1 ? labeledVariants : model.variants;
@@ -225,7 +242,9 @@ export function Settings() {
         const result = await getAvailableModels();
         if (isActive) {
           setEmbeddingModel(result.embedding_model);
-          setModels(result.models);
+          setModels(
+            excludeUndeterminedModels(result.models, result.embedding_model),
+          );
           setError(null);
         }
       } catch {
