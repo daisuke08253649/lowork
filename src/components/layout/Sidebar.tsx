@@ -66,6 +66,10 @@ export function Sidebar() {
   const [pendingNavigationPath, setPendingNavigationPath] = useState<
     string | null
   >(null);
+  const [conversationToDelete, setConversationToDelete] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
   const titleRefreshAttemptsRef = useRef(0);
   const titleRefreshProjectIdRef = useRef<string | undefined>(undefined);
   const projectHistoryRefreshToken = useProjectHistoryStore(
@@ -191,6 +195,7 @@ export function Sidebar() {
   async function handleConversationDelete(
     conversationId: string,
   ): Promise<void> {
+    setConversationToDelete(null);
     if (projectId) {
       try {
         await deleteChatConversation(conversationId);
@@ -291,7 +296,12 @@ export function Sidebar() {
                 disabled={isStreaming}
                 size="icon"
                 variant="ghost"
-                onClick={() => void handleConversationDelete(conversation.id)}
+                onClick={() =>
+                  setConversationToDelete({
+                    id: conversation.id,
+                    title: conversation.title,
+                  })
+                }
               >
                 <Trash2 className="size-4" aria-hidden="true" />
               </Button>
@@ -299,6 +309,40 @@ export function Sidebar() {
           ))}
         </div>
       </section>
+
+      <AlertDialog
+        open={conversationToDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConversationToDelete(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>チャットを削除しますか？</AlertDialogTitle>
+            <AlertDialogDescription>
+              「{conversationToDelete?.title}
+              」を削除します。この操作は元に戻せません。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel render={<Button variant="outline" />}>
+              キャンセル
+            </AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (conversationToDelete) {
+                  void handleConversationDelete(conversationToDelete.id);
+                }
+              }}
+            >
+              削除する
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog
         open={pendingNavigationPath !== null}
